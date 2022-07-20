@@ -333,13 +333,20 @@ static const NSInteger kValueNotFound = -1;
 
             if (upnpFault)
             {
-                NSString *errorDescription = [[[[upnpFault objectForKey:@"detail"] objectForKeyEndingWithString:@":UPnPError"] objectForKeyEndingWithString:@":errorDescription"] objectForKey:@"text"];
-
-                if (!errorDescription)
-                    errorDescription = @"Unknown UPnP error";
-
-                if (command.callbackError)
-                    dispatch_on_main(^{ command.callbackError([ConnectError generateErrorWithCode:ConnectStatusCodeTvError andDetails:errorDescription]); });
+                NSString *errorDescription = [[[[upnpFault objectForKey:@"detail"] objectForKeyEndingWithString:@"UPnPError"] objectForKeyEndingWithString:@"errorDescription"] objectForKey:@"text"];
+                NSNumber *errorCode = [[[[upnpFault objectForKey:@"detail"] objectForKeyEndingWithString:@"UPnPError"] objectForKeyEndingWithString:@"errorCode"] objectForKey:@"text"];
+                if (errorCode != nil && errorCode.integerValue == 701) {
+                    // ignore for samsung sometime raise this error
+                    if (command.callbackComplete)
+                        dispatch_on_main(^{ command.callbackComplete(dataXML); });
+                } else {
+                    if (!errorDescription)
+                        errorDescription = @"Unknown UPnP error";
+                    
+                    if (command.callbackError)
+                        dispatch_on_main(^{ command.callbackError([ConnectError generateErrorWithCode:ConnectStatusCodeTvError andDetails:errorDescription]); });
+                }
+                
             } else
             {
                 if (command.callbackComplete)
@@ -751,7 +758,14 @@ static const NSInteger kValueNotFound = -1;
 {
     if (!timeString || [timeString isEqualToString:@""])
         return 0;
-
+    
+    // fix: samsung time 0:00:21.632
+    NSArray *timeComponents = [timeString componentsSeparatedByString:@":"];
+    if (timeComponents.count != 3) {
+        return 0;
+    }
+    timeString = [NSString stringWithFormat:@"%@:%@:%ld", timeComponents[0], timeComponents[1], (long)round([timeComponents[2] doubleValue])];
+    
     NSDateFormatter *formatter = [[NSDateFormatter alloc] init];
     [formatter setDateFormat:@"HH:m:ss"];
 
