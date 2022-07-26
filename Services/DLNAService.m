@@ -902,7 +902,7 @@ static const NSInteger kValueNotFound = -1;
 
                 [writer writeElement:@"res" withContentsBlock:^(XMLWriter *writer) {
                     NSString *value = [NSString stringWithFormat:
-                                       @"http-get:*:%@:DLNA.ORG_OP=00;DLNA.ORG_PN=PNG_LRG;DLNA.ORG_CI=1;DLNA.ORG_FLAGS=00D00000000000000000000000000000",
+                                       @"http-get:*:%@:DLNA.ORG_OP=01",
                                        mimeType];
                     [writer writeAttribute:@"protocolInfo" value:value];
                     [writer writeCharacters:mediaInfoURLString];
@@ -921,8 +921,6 @@ static const NSInteger kValueNotFound = -1;
                                               [writer writeElement:@"CurrentURI" withContents:mediaInfoURLString];
                                               [writer writeElement:@"CurrentURIMetaData" withContents:[metadataXML orEmpty]];
                                           }];
-    setURLXML = [setURLXML stringByReplacingOccurrencesOfString:@"&#34;" withString:@"\""];
-    setURLXML = [setURLXML stringByReplacingOccurrencesOfString:@"&amp;" withString:@"&"];
     NSDictionary *setURLPayload = @{kActionFieldName : @"\"urn:schemas-upnp-org:service:AVTransport:1#SetAVTransportURI\"",
                                     kDataFieldName : setURLXML};
 
