@@ -694,7 +694,20 @@ static NSMutableArray *registeredApps = nil;
 
 - (void)getPositionWithSuccess:(MediaPositionSuccessBlock)success failure:(FailureBlock)failure
 {
-    [self sendNotSupportedFailure:failure];
+    // https://developer.roku.com/en-gb/docs/developer-program/debugging/external-control-api.md
+    NSURL *targetURL = [self.serviceDescription.commandURL URLByAppendingPathComponent:@"query"];
+    targetURL = [targetURL URLByAppendingPathComponent:@"media-player"];
+
+    ServiceCommand *command = [ServiceCommand commandWithDelegate:self.serviceCommandDelegate target:targetURL payload:nil];
+    command.HTTPMethod = @"GET";
+    command.callbackComplete = ^(NSString *responseObject)
+    {
+        DLog(responseObject);
+    };
+    command.callbackError = failure;
+    [command send];
+    
+//    [self sendNotSupportedFailure:failure];
 }
 
 - (void)getMediaMetaDataWithSuccess:(SuccessBlock)success
