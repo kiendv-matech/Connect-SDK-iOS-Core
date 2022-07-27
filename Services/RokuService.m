@@ -679,7 +679,40 @@ static NSMutableArray *registeredApps = nil;
 
 - (void)getPlayStateWithSuccess:(MediaPlayStateSuccessBlock)success failure:(FailureBlock)failure
 {
-    [self sendNotSupportedFailure:failure];
+    NSURL *targetURL = [self.serviceDescription.commandURL URLByAppendingPathComponent:@"query"];
+    targetURL = [targetURL URLByAppendingPathComponent:@"media-player"];
+
+    ServiceCommand *command = [ServiceCommand commandWithDelegate:self.serviceCommandDelegate target:targetURL payload:nil];
+    command.HTTPMethod = @"GET";
+    command.callbackComplete = ^(NSString *responseObject)
+    {
+        NSError *xmlError;
+        NSDictionary *appListDictionary = [CTXMLReader dictionaryForXMLString:responseObject error:&xmlError];
+        if (appListDictionary) {
+            id appsObject = [appListDictionary valueForKeyPath:@"player"];
+            id state = [appsObject valueForKeyPath:@"state"];
+            MediaControlPlayState playState = MediaControlPlayStateUnknown;
+            if ([state isEqualToString:@"close"])
+                playState = MediaControlPlayStateFinished;
+            else if ([state isEqualToString:@"pause"])
+                playState = MediaControlPlayStatePaused;
+            else if ([state isEqualToString:@"play"])
+                playState = MediaControlPlayStatePlaying;
+            else
+                playState = MediaControlPlayStateUnknown;
+            if (success)
+                success(playState);
+        } else {
+            if (failure) {
+                NSString *details = [NSString stringWithFormat:
+                                     @"Couldn't parse apps XML (%@)", xmlError.localizedDescription];
+                failure([ConnectError generateErrorWithCode:ConnectStatusCodeTvError
+                                                 andDetails:details]);
+            }
+        }
+    };
+    command.callbackError = failure;
+    [command send];
 }
 
 - (ServiceSubscription *)subscribePlayStateWithSuccess:(MediaPlayStateSuccessBlock)success failure:(FailureBlock)failure
@@ -695,19 +728,52 @@ static NSMutableArray *registeredApps = nil;
 - (void)getPositionWithSuccess:(MediaPositionSuccessBlock)success failure:(FailureBlock)failure
 {
     // https://developer.roku.com/en-gb/docs/developer-program/debugging/external-control-api.md
-    NSURL *targetURL = [self.serviceDescription.commandURL URLByAppendingPathComponent:@"query"];
-    targetURL = [targetURL URLByAppendingPathComponent:@"media-player"];
+    [self getPlayStateWithSuccess:^(MediaControlPlayState playState) {
+        if ((playState == MediaControlPlayStatePlaying) || (playState == MediaControlPlayStatePaused)) {
+            NSURL *targetURL = [self.serviceDescription.commandURL URLByAppendingPathComponent:@"query"];
+            targetURL = [targetURL URLByAppendingPathComponent:@"media-player"];
 
-    ServiceCommand *command = [ServiceCommand commandWithDelegate:self.serviceCommandDelegate target:targetURL payload:nil];
-    command.HTTPMethod = @"GET";
-    command.callbackComplete = ^(NSString *responseObject)
-    {
-        DLog(responseObject);
-    };
-    command.callbackError = failure;
-    [command send];
-    
-//    [self sendNotSupportedFailure:failure];
+            ServiceCommand *command = [ServiceCommand commandWithDelegate:self.serviceCommandDelegate target:targetURL payload:nil];
+            command.HTTPMethod = @"GET";
+            command.callbackComplete = ^(NSString *responseObject)
+            {
+                NSError *xmlError;
+                NSDictionary *appListDictionary = [CTXMLReader dictionaryForXMLString:responseObject error:&xmlError];
+                if (appListDictionary) {
+                    id appsObject = [appListDictionary valueForKeyPath:@"player"];
+                    id position = [appsObject valueForKeyPath:@"position"];
+                    if ([position isKindOfClass:[NSDictionary class]]) {
+                        NSString *currentTimeString = [position valueForKeyPath:@"text"];
+                        currentTimeString = [currentTimeString stringByReplacingOccurrencesOfString:@"ms" withString:@""];
+                        NSTimeInterval currentTime = [self timeForString:currentTimeString];
+                        if (success)
+                            success(currentTime);
+                    }
+                } else {
+                    if (failure) {
+                        NSString *details = [NSString stringWithFormat:
+                            @"Couldn't parse apps XML (%@)", xmlError.localizedDescription];
+                        failure([ConnectError generateErrorWithCode:ConnectStatusCodeTvError
+                                                         andDetails:details]);
+                    }
+                }
+            };
+            command.callbackError = failure;
+            [command send];
+        }
+    } failure:failure];
+}
+
+- (NSTimeInterval) timeForString:(NSString *)timeString
+{
+    if (!timeString || [timeString isEqualToString:@""])
+        return 0;
+
+    // fix: samsung time 0:00:21.632
+    NSInteger time = [timeString integerValue];
+    NSTimeInterval timeInterval = time/1000;
+
+    return timeInterval;
 }
 
 - (void)getMediaMetaDataWithSuccess:(SuccessBlock)success
