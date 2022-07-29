@@ -764,13 +764,18 @@ static const NSInteger kValueNotFound = -1;
     if (timeComponents.count != 3) {
         return 0;
     }
-    timeString = [NSString stringWithFormat:@"%@:%@:%ld", timeComponents[0], timeComponents[1], (long)round([timeComponents[2] doubleValue])];
-    
+    NSString *timeFormatterString = @"HH:m:ss";
+    NSString *midnightTimeString = @"00:00:00";
+    if ([timeString containsString:@"."]) {
+        timeFormatterString = @"HH:m:ss.SSS";
+        midnightTimeString = @"00:00:00.000";
+    }
+   
     NSDateFormatter *formatter = [[NSDateFormatter alloc] init];
-    [formatter setDateFormat:@"HH:m:ss"];
+    [formatter setDateFormat:timeFormatterString];
 
     NSDate *time = [formatter dateFromString:timeString];
-    NSDate *midnight = [formatter dateFromString:@"00:00:00"];
+    NSDate *midnight = [formatter dateFromString:midnightTimeString];
 
     NSTimeInterval timeInterval = [time timeIntervalSinceDate:midnight];
 
