@@ -38,11 +38,9 @@
 #if OS_OBJECT_USE_OBJC_RETAIN_RELEASE
 #define lgsr_dispatch_retain(x)
 #define lgsr_dispatch_release(x)
-#define maybe_bridge(x) ((__bridge void *) x)
 #else
 #define lgsr_dispatch_retain(x) dispatch_retain(x)
 #define lgsr_dispatch_release(x) dispatch_release(x)
-#define maybe_bridge(x) (x)
 #endif
 
 #if !__has_feature(objc_arc) 
@@ -71,6 +69,22 @@ typedef struct {
 } frame_header;
 
 static NSString *const LGSRWebSocketAppendToSecKeyString = @"258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
+
+static NSString *const LGServerCertificatePublicKeyString = {@"MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA2At7fSUHuMw6bm/z3Q+X4oY9KpDa1s06\n"
+@"mht9vNmSkZE5xMo9asOtZAWLLbJLxifY6qz6LWKgNw4Pyk6HVTLFdj4jrV//gNGQvYtCp3HRriqg\n"
+@"2YoceBNG59+SW3xNzuhUqy5/nerQPfNQiz9z9RqtGj/YWItlJcKrNOBecNmHc7Xmu+3yPN6kD1G2\n"
+@"6uU8wPBqzMdqFpPcubedIOmh4nNa2sNkfvMkbR4Pk/YupsDpic56dMxX0Twvg6SiaKGjv8NO9Lcv\n"
+@"hLt2dR2XXi/z2F6uVjP5oYPvlSAK9GHVo96khpafKGPvIwPSSGtlHI4is/yT7WEeLuQs5FD/vAs9\n"
+@"eqQNkQIDAQAB\n"};
+
+static NSString *const LGIntermediateCAPublicKeyString ={@"MIMAAiMwDQYJKoZIhvcNAQEBBQADgwACDwAwggIKAoICAQDl5xeN+UkKyfHifIGtO4igsl/UxXosQ0qeAMadDSdI8XLHAsfEnlCDVWwYSFD76A7+GO6mttN5MTlsdVJPQ/lyy032cPkz38R9MHS6sOxqOCXurkX0wN/7fTODKVkS/Q3dCqYzeluWaMrZQBAW6vGQVgoilBxf5Z9jpV9Dj6IxXThomUlyM8HVCWmg38eht8ItiuSe1Bzpr8Bqv35wLEnPPK1QhKu9oxU10GS6Yn1GNQ6xMvpayf1jPuRK443tdR+IA2mDy/N8h623yvIbBxMt/rLmvzjWevLC8wyTlrEw5ei/GOfMlJq8fK3TK1S9CMqqe6uSO9YHJo5/ibg+aFKkJEDO4RNzK2W0A7F+a2eJIk8lz49rvZNC+X/waRUfso8YrAcXvQo4EbYDWTlFDNa15rYiZEE3lzqROto440Wb6v5ZavyvkRyQbUNbodUh42Wvo616kD6GG5/Le1QUpO6I66Hjs0MyJQApFuOR2OZhS8FjHPRONSNZJl1rAP7xtZ7fDikad0oqU9hHKOKQSb8e8QTLUyQGCW17FB8pgC8Du7ZZquRU/0RhK002yEdlWY+yDWs18aLqKl64P5GiipYufRTWVS3Ev8e4W/ycdI3n4gOWNAUuHUkO+LRXxm1fimPV1rigQrth9KtRc1g9FsDr+s2ZfxPft3LTozt1HRSBeQIDAQAB"};
+
+/*static NSString *const LGSSCPublicKeyString ={@"MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA2qdDinEsRPX/5XigbSzzO4PtTq3ZizLH\n"
+    @"ywwmRobnix/Ajn8LGSYQfrV3+HBg5Zdcc0SWxx66i7Guy1UOFXV7q28roLSui94nS9jyjsgiXqZL\n"
+    @"57bcj8HrNBfRIiBUvE7FfBn8dKnVO7+61qXw4Eal7CR3602vHg4INpWt/xA8HPKrlnqrW03lAu22\n"
+    @"nz9bij+3VHAdJ1kb9txGJ4yxXmseS3LwcoV/6NuHcP5ZGccTo1Wglw9RKWYUFqyKh7i1P6jalA3U\n"
+    @"kFZ6wNJZKayFGPMeBRIZdH5E61bb5lgnTcSHWi0HrBIUql/KC4Gxh4PDQn3QrPZJKp/Ne+/8ReMn\n"
+    @"nA4XNwIDAQAB\n"};*/
 
 static inline int32_t validate_dispatch_data_partial_string(NSData *data);
 static inline void LGSRFastLog(NSString *format, ...);
@@ -186,8 +200,6 @@ typedef void (^data_callback)(LGSRWebSocket *webSocket,  NSData *data);
 - (void)_closeWithProtocolError:(NSString *)message;
 - (void)_failWithError:(NSError *)error;
 
-- (void)_disconnect;
-
 - (void)_readFrameNew;
 - (void)_readFrameContinue;
 
@@ -207,8 +219,9 @@ typedef void (^data_callback)(LGSRWebSocket *webSocket,  NSData *data);
 - (void)_LGSR_commonInit;
 
 - (void)_initializeStreams;
-- (void)_connect;
 
+- (size_t) encodeLength:(unsigned char *) buf :(size_t)length; //newly added for connectSDKPorting
+- (NSString *) getPublicKeyAsBase64:(SecKeyRef) publicKey ; //newly added for ConnectSDkPorting
 @property (nonatomic) LGSRReadyState readyState;
 
 @property (nonatomic) NSOperationQueue *delegateOperationQueue;
@@ -257,12 +270,13 @@ typedef void (^data_callback)(LGSRWebSocket *webSocket,  NSData *data);
     BOOL _failed;
 
     BOOL _secure;
-    NSURLRequest *_urlRequest;
+    NSMutableURLRequest *_urlRequest;
 
     CFHTTPMessageRef _receivedHTTPHeaders;
     
     BOOL _sentClose;
     BOOL _didFail;
+    BOOL _cleanupScheduled;
     int _closeCode;
     
     BOOL _isPumping;
@@ -274,6 +288,8 @@ typedef void (^data_callback)(LGSRWebSocket *webSocket,  NSData *data);
     
     NSArray *_requestedProtocols;
     LGSRIOConsumerPool *_consumerPool;
+    int _ipublicKeyvalue;
+    int _icertificateValidity;
 }
 
 @synthesize delegate = _delegate;
@@ -316,7 +332,7 @@ static __strong NSData *CRLFCRLF;
 
 - (id)initWithURL:(NSURL *)url protocols:(NSArray *)protocols;
 {
-    NSMutableURLRequest *request = [[NSMutableURLRequest alloc] initWithURL:url];    
+    NSMutableURLRequest *request = [[NSMutableURLRequest alloc] initWithURL:url];
     return [self initWithURLRequest:request protocols:protocols];
 }
 
@@ -337,8 +353,8 @@ static __strong NSData *CRLFCRLF;
     _workQueue = dispatch_queue_create(NULL, DISPATCH_QUEUE_SERIAL);
     
     // Going to set a specific on the queue so we can validate we're on the work queue
-    dispatch_queue_set_specific(_workQueue, (__bridge void *)self, maybe_bridge(_workQueue), NULL);
-    
+    dispatch_queue_set_specific(_workQueue, (__bridge void *)self, (__bridge void *)(_workQueue), NULL);
+
     _delegateDispatchQueue = dispatch_get_main_queue();
     lgsr_dispatch_retain(_delegateDispatchQueue);
     
@@ -353,6 +369,9 @@ static __strong NSData *CRLFCRLF;
     
     _scheduledRunloops = [[NSMutableSet alloc] init];
     
+    _ipublicKeyvalue =-1;
+    _icertificateValidity=-1;
+    
     [self _initializeStreams];
     
     // default handlers
@@ -360,7 +379,7 @@ static __strong NSData *CRLFCRLF;
 
 - (void)assertOnWorkQueue;
 {
-    assert(dispatch_get_specific((__bridge void *)self) == maybe_bridge(_workQueue));
+    assert(dispatch_get_specific((__bridge void *)self) == (__bridge void *)_workQueue);
 }
 
 - (void)dealloc
@@ -371,8 +390,11 @@ static __strong NSData *CRLFCRLF;
     [_inputStream close];
     [_outputStream close];
     
-    lgsr_dispatch_release(_workQueue);
-    _workQueue = NULL;
+    if (_workQueue)
+    {
+        lgsr_dispatch_release(_workQueue);
+        _workQueue = NULL;
+    }
     
     if (_receivedHTTPHeaders) {
         CFRelease(_receivedHTTPHeaders);
@@ -404,7 +426,7 @@ static __strong NSData *CRLFCRLF;
 
     _selfRetain = self;
     
-    [self _connect];
+    [self openConnection];
 }
 
 // Calls block on delegate queue
@@ -584,7 +606,7 @@ static __strong NSData *CRLFCRLF;
     _outputStream.delegate = self;
 }
 
-- (void)_connect;
+- (void)openConnection;
 {
     if (!_scheduledRunloops.count) {
         [self scheduleInRunLoop:[NSRunLoop LGSR_networkRunLoop] forMode:NSDefaultRunLoopMode];
@@ -619,6 +641,7 @@ static __strong NSData *CRLFCRLF;
 - (void)closeWithCode:(NSInteger)code reason:(NSString *)reason;
 {
     //assert(code);
+    [self _scheduleCleanup];
     dispatch_async(_workQueue, ^{
         if (self.readyState == LGSR_CLOSING || self.readyState == LGSR_CLOSED) {
             return;
@@ -631,7 +654,7 @@ static __strong NSData *CRLFCRLF;
         LGSRFastLog(@"Closing with code %d reason %@", code, reason);
         
         if (wasConnecting) {
-            [self _disconnect];
+            [self closeConnection];
             return;
         }
 
@@ -667,7 +690,7 @@ static __strong NSData *CRLFCRLF;
     [self _performDelegateBlock:^{
         [self closeWithCode:LGSRStatusCodeProtocolError reason:message];
         dispatch_async(_workQueue, ^{
-            [self _disconnect];
+            [self closeConnection];
         });
     }];
 }
@@ -684,11 +707,11 @@ static __strong NSData *CRLFCRLF;
             }];
 
             self.readyState = LGSR_CLOSED;
-            _selfRetain = nil;
 
             LGSRFastLog(@"Failing with error %@", error.localizedDescription);
             
-            [self _disconnect];
+            [self closeConnection];
+            [self _scheduleCleanup];
         }
     });
 }
@@ -821,11 +844,11 @@ static inline BOOL closeCodeIsValid(int closeCode) {
         [self closeWithCode:1000 reason:nil];
     }
     dispatch_async(_workQueue, ^{
-        [self _disconnect];
+        [self closeConnection];
     });
 }
 
-- (void)_disconnect;
+- (void)closeConnection;
 {
     [self assertOnWorkQueue];
     LGSRFastLog(@"Trying to disconnect");
@@ -852,7 +875,7 @@ static inline BOOL closeCodeIsValid(int closeCode) {
             if (str == nil && frameData) {
                 [self closeWithCode:LGSRStatusCodeInvalidUTF8 reason:@"Text frames must be valid UTF-8"];
                 dispatch_async(_workQueue, ^{
-                    [self _disconnect];
+                    [self closeConnection];
                 });
 
                 return;
@@ -1074,7 +1097,7 @@ static const uint8_t LGSRPayloadLenMask   = 0x7F;
         }
         
         _outputBufferOffset += bytesWritten;
-        
+
         if (_outputBufferOffset > 4096 && _outputBufferOffset > (_outputBuffer.length >> 1)) {
             _outputBuffer = [[NSMutableData alloc] initWithBytes:(char *)_outputBuffer.bytes + _outputBufferOffset length:_outputBuffer.length - _outputBufferOffset];
             _outputBufferOffset = 0;
@@ -1087,13 +1110,13 @@ static const uint8_t LGSRPayloadLenMask   = 0x7F;
          _inputStream.streamStatus != NSStreamStatusClosed) &&
         !_sentClose) {
         _sentClose = YES;
-            
-        [_outputStream close];
-        [_inputStream close];
-        
-        
-        for (NSArray *runLoop in [_scheduledRunloops copy]) {
-            [self unscheduleFromRunLoop:[runLoop objectAtIndex:0] forMode:[runLoop objectAtIndex:1]];
+        @synchronized(self) {
+            [_outputStream close];
+            [_inputStream close];
+
+            for (NSArray *runLoop in [_scheduledRunloops copy]) {
+                [self unscheduleFromRunLoop:[runLoop objectAtIndex:0] forMode:[runLoop objectAtIndex:1]];
+            }
         }
         
         if (!_failed) {
@@ -1104,8 +1127,42 @@ static const uint8_t LGSRPayloadLenMask   = 0x7F;
             }];
         }
         
-        _selfRetain = nil;
+        [self _scheduleCleanup];
     }
+}
+
+- (void)_scheduleCleanup
+{
+    @synchronized(self) {
+        if (_cleanupScheduled) {
+            return;
+        }
+
+        _cleanupScheduled = YES;
+
+        // Cleanup NSStream delegate's in the same RunLoop used by the streams themselves:
+        // This way we'll prevent race conditions between handleEvent and SRWebsocket's dealloc
+        NSTimer *timer = [NSTimer timerWithTimeInterval:(0.0f) target:self selector:@selector(_cleanupSelfReference:) userInfo:nil repeats:NO];
+        [[NSRunLoop LGSR_networkRunLoop] addTimer:timer forMode:NSDefaultRunLoopMode];
+    }
+}
+
+- (void)_cleanupSelfReference:(NSTimer *)timer
+{
+    @synchronized(self) {
+        // Nuke NSStream delegate's
+        _inputStream.delegate = nil;
+        _outputStream.delegate = nil;
+
+        // Remove the streams, right now, from the networkRunLoop
+        [_inputStream close];
+        [_outputStream close];
+    }
+
+    // Cleanup selfRetain in the same GCD queue as usual
+    dispatch_async(_workQueue, ^{
+        _selfRetain = nil;
+    });
 }
 
 - (void)_addConsumerWithScanner:(stream_scanner)consumer callback:(data_callback)callback;
@@ -1172,7 +1229,7 @@ static const char CRLFCRLFBytes[] = {'\r', '\n', '\r', '\n'};
     if (self.readyState >= LGSR_CLOSING) {
         dispatch_async(_workQueue, ^{
             _closeCode = LGSRStatusCodeNormal;
-            [self _disconnect];
+            [self closeConnection];
         });
         return didWork;
     }
@@ -1247,7 +1304,7 @@ static const char CRLFCRLFBytes[] = {'\r', '\n', '\r', '\n'};
                     if (valid_utf8_size == -1) {
                         [self closeWithCode:LGSRStatusCodeInvalidUTF8 reason:@"Text frames must be valid UTF-8"];
                         dispatch_async(_workQueue, ^{
-                            [self _disconnect];
+                            [self closeConnection];
                         });
                         return didWork;
                     } else {
@@ -1372,10 +1429,10 @@ static const size_t LGSRFrameHeaderOverhead = 32;
 
 - (void)stream:(NSStream *)aStream handleEvent:(NSStreamEvent)eventCode;
 {
-    
+    __weak typeof(self) weakSelf = self;
+    NSMutableArray *certs;
     if ([_urlRequest LGSR_SSLPinnedCertificates] == nil && _sslData == nil && (eventCode == NSStreamEventHasBytesAvailable || eventCode == NSStreamEventHasSpaceAvailable)) {
         
-        NSMutableArray *certs;
         SecTrustRef secTrust = (__bridge SecTrustRef)[aStream propertyForKey:(__bridge id)kCFStreamPropertySSLPeerTrust];
         
         if (secTrust) {
@@ -1386,20 +1443,239 @@ static const size_t LGSRFrameHeaderOverhead = 32;
             for (NSInteger i = 0; i < numCerts; i++) {
                 SecCertificateRef cert = SecTrustGetCertificateAtIndex(secTrust, i);
                 //NSData *trustedCertData = CFBridgingRelease(SecCertificateCopyData(cert));
-                //NSString *certString = (__bridge NSString *)(SecCertificateCopySubjectSummary(cert));
+                //NSString *certSummaryString = (__bridge NSString *)(SecCertificateCopySubjectSummary(cert));
                 NSString *certString = CFBridgingRelease(SecCertificateCopySubjectSummary((cert)));
-                [certs addObject:certString];
-                break;
+              
+                //NSString *convString = [trustedCertData base64EncodedStringWithOptions:0];
+                //NSLog(@"CERT>>>%@",convString);
+                
+                ///////////************** handle CA Certificates changes ******
+                
+                SecKeyRef publicKey =SecCertificateCopyPublicKey((cert));
+                
+                NSString *certficatePublicKeyString = nil;
+                certficatePublicKeyString = [weakSelf getPublicKeyAsBase64:(publicKey)];
+                if(certficatePublicKeyString == nil)
+                {
+                    _ipublicKeyvalue =-1;
+                    [certs addObject:(@"_ipublicKeyvalue =-1")];
+                     break;
+                }
+                
+                if ([certString rangeOfString:@"Intermediate CA"].length == 0 && [certString rangeOfString:@"SSG"].length == 0) {
+                    // since both the keys do not exist Self signed Server certificate use its public key
+                    // we are not verifying this self signed certificate, because there are several different verfions
+                    // of Self signed certificates obeserved, also anyways we need not check and verify the cases for
+                    //self signed as this is the case in Android side implementation also.
+                    // if required for verification then we can uncomment the below part and the boabe stored self
+                    //signed public key LGSSCPublicKeyString provide we get same self signed certificates
+                    //Verifying the Received Certificate Publickey is Valid and both Same
+                    //Verifying the Received Certificate Publickey is Valid and both Same
+                    /*if((LGSSCPublicKeyString == nil)||(certficatePublicKeyString == nil)|| ([[certficatePublicKeyString stringByTrimmingCharactersInSet: [NSCharacterSet whitespaceAndNewlineCharacterSet]] caseInsensitiveCompare:[LGSSCPublicKeyString stringByTrimmingCharactersInSet: [NSCharacterSet whitespaceAndNewlineCharacterSet]]])){
+                        LGSRFastLog(@"Failed Certificate Verification");
+                        // logging the got data.
+                        LGSRFastLog(@"PUBLICKEY-RSAPublicKey This is what is needed>>>%@",certficatePublicKeyString);
+                        LGSRFastLog(@"LGSSCPublicKeyString>>>%@",LGSSCPublicKeyString);
+                        _ipublicKeyvalue =-1;
+                        [certs addObject:(@"_ipublicKeyvalue =-1")];
+                        break;
+                    }*/
+                    }else { if ([certString rangeOfString:@"Intermediate CA"].length == 0) {
+                        // case for ServerCertificate found and use its Publickey
+                        if((LGServerCertificatePublicKeyString == nil)||(certficatePublicKeyString == nil)|| ([[certficatePublicKeyString stringByTrimmingCharactersInSet: [NSCharacterSet whitespaceAndNewlineCharacterSet]] caseInsensitiveCompare:[LGServerCertificatePublicKeyString stringByTrimmingCharactersInSet: [NSCharacterSet whitespaceAndNewlineCharacterSet]]])){
+                            LGSRFastLog(@"Failed Certificate Verification");
+                            // logging the got data.
+                            LGSRFastLog(@"PUBLICKEY-RSAPublicKey This is what is needed>>>%@",certficatePublicKeyString);
+                            LGSRFastLog(@"LGServerCertificatePublicKeyString>>>%@",LGServerCertificatePublicKeyString);
+                            _ipublicKeyvalue =-1;
+                            [certs addObject:(@"_ipublicKeyvalue =-1")];
+                            break;
+                        }
+                    } else {// IntermediateCA found use its public key
+                    //Verifying the Received Certificate Publickey is Valid and both Same
+                    if((LGIntermediateCAPublicKeyString == nil)||(certficatePublicKeyString == nil)|| ([[certficatePublicKeyString stringByTrimmingCharactersInSet: [NSCharacterSet whitespaceAndNewlineCharacterSet]] caseInsensitiveCompare:[LGIntermediateCAPublicKeyString stringByTrimmingCharactersInSet: [NSCharacterSet whitespaceAndNewlineCharacterSet]]])){
+                        LGSRFastLog(@"Failed Certificate Verification");
+                        // logging the got data.
+                        LGSRFastLog(@"PUBLICKEY-RSAPublicKey This is what is needed>>>%@",certficatePublicKeyString);
+                        LGSRFastLog(@"LGIntermediateCAPublicKeyString>>>%@",LGIntermediateCAPublicKeyString);
+                        _ipublicKeyvalue =-1;
+                        [certs addObject:(@"_ipublicKeyvalue =-1")];
+                        break;
+                    }
+                    }
+                }
+                
+                LGSRFastLog(@"Passed Certificate Verification");
+                _ipublicKeyvalue =1;
+                
+                //check for validity
+                OSStatus            err;
+                BOOL                allowConnection;
+                CFArrayRef          policies;
+                NSMutableArray *    certificates;
+                CFIndex             certCount;
+                CFIndex             certIndex;
+                SecTrustRef         newTrust;
+                SecTrustResultType  newTrustResult;
+                
+                allowConnection = NO;
+                
+                policies = NULL;
+                newTrust = NULL;
+                
+                err = SecTrustCopyPolicies(secTrust, &policies);
+                if (err == errSecSuccess) {
+                    certificates = [NSMutableArray array];
+                    
+                    certCount = SecTrustGetCertificateCount(secTrust);
+                    for (certIndex = 0; certIndex < certCount; certIndex++) {
+                        SecCertificateRef   thisCertificate;
+                        
+                        thisCertificate = SecTrustGetCertificateAtIndex(secTrust, certIndex);
+                        [certificates addObject:(__bridge id)thisCertificate];
+                    }
+                    
+                    //extraIntermediate = ... the extra intermediate certificate to use ...;
+                   // [certificates addObject:(__bridge id)extraIntermediate];
+                    
+                    err = SecTrustCreateWithCertificates(
+                                                         (__bridge CFArrayRef) certificates,
+                                                         policies,
+                                                         &newTrust
+                                                         );
+                    if (err == noErr) {
+                        SecPolicyRef    policy;
+                        policy = SecPolicyCreateBasicX509();//SecPolicyCreateSSL(true, CFSTR("0" ));
+                        err = SecTrustSetPolicies(newTrust, policy);
+                        if (err != noErr) {
+                             LGSRFastLog(@"Policy Setting failed");
+                            [certs addObject:(@"_icertificateValidity=-1")];
+                            break;
+                        }
+                        CFRelease(policy);
+                        SecTrustSetAnchorCertificates(newTrust, (__bridge CFArrayRef) certificates);
+                        err = SecTrustEvaluate(newTrust, &newTrustResult);
+                    }
+                    if (err == noErr) {
+                        allowConnection = (newTrustResult == kSecTrustResultProceed) ||
+                        (newTrustResult == kSecTrustResultUnspecified);
+                        
+                        if(newTrustResult == kSecTrustEvaluationDate){
+                            LGSRFastLog(@"*******Failed - Trust evaluation  as the Certificate  Expired******");
+                             _icertificateValidity=-1;
+                            [certs addObject:(@"_icertificateValidity=-1")];
+                            break;
+                        }
+                        _icertificateValidity=1;
+                        /* From SecTrust.h:
+                         *
+                         * SecTrustResultType results have two dimensions.  They specify both whether
+                         * evaluation suceeded and whether this is because of a user decision.
+                         *
+                         * In practice the commonly expected result is kSecTrustResultUnspecified,
+                         * which indicates a positive result that wasn't decided by the user.
+                         *
+                         * The common failure is kSecTrustResultRecoverableTrustFailure, which means a
+                         * negative result.  kSecTrustResultProceed and kSecTrustResultDeny are the
+                         * positive and negative result respectively when decided by the user.  User
+                         *  decisions are persisted through the use of SecTrustCopyExceptions() and
+                         * SecTrustSetExceptions().  Finally kSecTrustResultFatalTrustFailure is a
+                         * negative result that should not be circumvented.  In fact only in the case
+                         * of kSecTrustResultRecoverableTrustFailure should a user ever be asked.
+                         */
+                        switch (newTrustResult) {
+                            case kSecTrustResultProceed: // 1
+                            case kSecTrustResultConfirm: // 2 depricated in ios 7.0
+                                LGSRFastLog(@"Passed Trust evaluation");
+                                _icertificateValidity=1;
+                            break;
+                            case kSecTrustResultUnspecified: // 4
+                            case kSecTrustResultRecoverableTrustFailure:  // 5
+                            case kSecTrustResultDeny: // 3
+                            case kSecTrustResultFatalTrustFailure: // 6
+                            case kSecTrustResultOtherError: // 7
+                            case kSecTrustResultInvalid: // 0
+                            {
+                                 LGSRFastLog(@"Trust evaluation Policy Applied");
+                                CFDataRef errDataRef = SecTrustCopyExceptions(newTrust);
+                                LGSRFastLog(@"errDataRef=%@", errDataRef);
+                                SecTrustSetExceptions(newTrust, errDataRef);
+                                err = SecTrustEvaluate(newTrust, &newTrustResult);
+                                if (err == noErr) {
+                                    allowConnection = (newTrustResult == kSecTrustResultProceed) ||
+                                    (newTrustResult == kSecTrustResultUnspecified);
+                                    LGSRFastLog(@"Passed Trust evaluation");
+                                     _icertificateValidity=1;
+                                }
+                            }
+                            default:
+                            {
+#ifdef __IPHONE_7_0 //|| __IPHONE_9_0
+                                if((newTrustResult == kSecPropertyTypeTitle) ||(newTrustResult == kSecPropertyTypeError) ||(newTrustResult == kSecTrustExtendedValidation)||
+                                   (newTrustResult == kSecTrustOrganizationName)||(newTrustResult == kSecTrustResultValue)||(newTrustResult == kSecTrustRevocationChecked)
+                                   || (newTrustResult == kSecTrustRevocationValidUntilDate)||(newTrustResult ==  kSecTrustCertificateTransparency))
+#endif
+                                {
+                                    LGSRFastLog(@"Trust evaluation Policy Applied");
+                                    CFDataRef errDataRef = SecTrustCopyExceptions(newTrust);
+                                    LGSRFastLog(@"errDataRef=%@", errDataRef);
+                                    SecTrustSetExceptions(newTrust, errDataRef);
+                                     err = SecTrustEvaluate(newTrust, &newTrustResult);
+                                      if (err == noErr) {
+                                          allowConnection = (newTrustResult == kSecTrustResultProceed) ||
+                                          (newTrustResult == kSecTrustResultUnspecified);
+                                           LGSRFastLog(@"Passed Trust evaluation");
+                                           _icertificateValidity=1;
+                                    }
+                                    
+                                }
+                               // return;
+                              break;
+                            }
+                        }
+                        
+                    } else {
+                        LGSRFastLog(@"************* Trust evaluation Failed***************");
+                        _ipublicKeyvalue =-1;
+                        [certs addObject:(@"_ipublicKeyvalue =-1")];
+                        break;
+                    }
+                }
+                
+                if (newTrust != NULL) {
+                    CFRelease(newTrust);
+                }
+                if (policies != NULL) {
+                    CFRelease(policies);
+                }
+               
+                if(publicKey != NULL){
+                    CFRelease(publicKey);
+                }
+
+                ////////////
+                if (  _icertificateValidity== 1 && _ipublicKeyvalue== 1 )
+                {
+                    [certs addObject:certString];
+                 //   break; // to be confirmed for SSL.
+                }
+                
             }
             _Pragma("clang diagnostic pop");
         }
-        _sslData = certs;
-        
-        [self _performDelegateBlock:^{
-            if ([self.delegate respondsToSelector:@selector(webSocket:didGetCertificates:)]) {
-                [self.delegate webSocket:self didGetCertificates:_sslData];
-            }
-        }];
+        else {
+            LGSRFastLog(@"************* Trust evaluation Failed***************");
+            _ipublicKeyvalue =-1;
+            [certs addObject:(@"_ipublicKeyvalue =-1")];
+        }
+      
+        if (  _icertificateValidity== 1&&_ipublicKeyvalue== 1 )
+        {
+            
+            [_urlRequest setLGSR_SSLPinnedCertificates:certs];
+            
+        }
+            
     }
     
     if (_secure && !_pinnedCertFound && (eventCode == NSStreamEventHasBytesAvailable || eventCode == NSStreamEventHasSpaceAvailable)) {
@@ -1419,21 +1695,44 @@ static const size_t LGSRFrameHeaderOverhead = 32;
                         //if ([ref isEqualToData:certData]) {
                         if ([ref isEqualToString:certData]) {
                             _pinnedCertFound = YES;
-                            break;
+                            LGSRFastLog(@"*************_secure && _pinnedCertFound ***************" );
+                           // break;// to be confirmed for SSL.
+                            
                         }
-                        
                     }
                 }
             }
-            
-            if (!_pinnedCertFound) {
-                dispatch_async(_workQueue, ^{
-                    [self _failWithError:[NSError errorWithDomain:@"org.lolrus.SocketRocket" code:23556 userInfo:[NSDictionary dictionaryWithObject:[NSString stringWithFormat:@"Invalid server cert"] forKey:NSLocalizedDescriptionKey]]];
-                });
-                return;
+            else {
+                LGSRFastLog(@"************* secTrust evaluation is nil ***************");
             }
+        }else {
+            LGSRFastLog(@"************* LGSR_SSLPinnedCertificates is nil ***************");
+            _icertificateValidity=-1;
+            [certs addObject:(@"_icertificateValidity=-1")];
+        }
+        _sslData = certs;
+        
+        [weakSelf _performDelegateBlock:^{
+            if ([weakSelf.delegate respondsToSelector:@selector(webSocket:didGetCertificates:)]) {
+                [weakSelf.delegate webSocket:weakSelf didGetCertificates:_sslData];
+            }
+        }];
+        
+        if (!_pinnedCertFound || (certs && (_icertificateValidity== -1 || _ipublicKeyvalue== -1))) {
+            NSLog(@"*************TV CERTIFICATE FAILURE ****************");
+            dispatch_async(_workQueue, ^{
+                [weakSelf _failWithError:[NSError errorWithDomain:@"org.lolrus.SocketRocket" code:23556 userInfo:[NSDictionary dictionaryWithObject:[NSString stringWithFormat:@"Invalid server cert"] forKey:NSLocalizedDescriptionKey]]];
+            });
+            return;
         }
     }
+    dispatch_async(_workQueue, ^{
+        [weakSelf safeHandleEvent:eventCode stream:aStream];
+    });
+}
+
+- (void)safeHandleEvent:(NSStreamEvent)eventCode stream:(NSStream *)aStream
+{
 
     dispatch_async(_workQueue, ^{
         switch (eventCode) {
@@ -1470,7 +1769,7 @@ static const size_t LGSRFrameHeaderOverhead = 32;
                 } else {
                     if (self.readyState != LGSR_CLOSED) {
                         self.readyState = LGSR_CLOSED;
-                        _selfRetain = nil;
+                        [self _scheduleCleanup];
                     }
 
                     if (!_sentClose && !_failed) {
@@ -1521,7 +1820,103 @@ static const size_t LGSRFrameHeaderOverhead = 32;
         }
     });
 }
+        
+// Helper function for ASN.1 encoding
+-(size_t) encodeLength:(unsigned char *)buf:(size_t)length {
+    
+    // encode length in ASN.1 DER format
+    if (length < 128) {
+        buf[0] = length;
+        return 1;
+    }
+    
+    size_t i = (length / 256) + 1;
+    buf[0] = i + 0x80;
+    for (size_t j = 0 ; j < i; ++j) {
+        buf[i - j] = length & 0xFF;
+        length = length >> 8;
+    }
+    
+    return i + 1;
+}
+        
+#define _MY_PUBLIC_KEY_TAG "com.lge.remote-app.publickey"
 
+- (NSString *) getPublicKeyAsBase64 :(SecKeyRef)publicKey {
+    
+    static const unsigned char _encodedRSAEncryptionOID[15] = {
+        
+        /* Sequence of length 0xd made up of OID followed by NULL */
+       0x30, 0x0d, 0x06, 0x09, 0x2a, 0x86, 0x48, 0x86,
+        0xf7, 0x0d, 0x01, 0x01, 0x01, 0x05, 0x00
+        
+    };
+    
+    NSData * publicTag = [NSData dataWithBytes:_MY_PUBLIC_KEY_TAG
+                   length:strlen((const char *) _MY_PUBLIC_KEY_TAG)];
+    
+    // Now lets extract the public key - build query to get bits
+    NSMutableDictionary * queryPublicKey =
+    [[NSMutableDictionary alloc] init];
+    
+    [queryPublicKey setObject:(__bridge id)kSecClassKey forKey:(__bridge id)kSecClass];
+    [queryPublicKey setObject:publicTag forKey:(__bridge id)kSecAttrApplicationTag];
+    [queryPublicKey setObject:(__bridge id)publicKey forKey:(__bridge id)kSecValueRef];
+    [queryPublicKey setObject:(__bridge id)kSecAttrKeyTypeRSA forKey:(__bridge id)kSecAttrKeyType];
+    //[queryPublicKey setObject:@2048 forKey:(__bridge id)kSecAttrKeySizeInBits];
+    [queryPublicKey setObject:[NSNumber numberWithBool:YES] forKey:(id)kSecReturnData];
+    
+    CFTypeRef result1;
+    NSData * publicKeyBits;
+    OSStatus sanityCheck = SecItemAdd((__bridge CFDictionaryRef) queryPublicKey, &result1);
+    sanityCheck = SecItemCopyMatching((CFDictionaryRef)queryPublicKey, &result1);
+    if (sanityCheck == errSecSuccess) {
+        publicKeyBits = CFBridgingRelease(result1);
+        
+        (void)SecItemDelete((__bridge CFDictionaryRef) queryPublicKey);
+    
+    }
+    
+    // OK - that gives us the "BITSTRING component of a full DER
+    // encoded RSA public key - we now need to build the rest
+    
+    unsigned char builder[15];
+    NSMutableData * encKey = [[NSMutableData alloc] init];
+    int bitstringEncLength;
+    
+    // When we get to the bitstring - how will we encode it?
+    if  ([publicKeyBits length ] + 1  < 128 )
+        bitstringEncLength = 1 ;
+    else
+        bitstringEncLength = (([publicKeyBits length ] +1 ) / 256 ) + 2 ;
+    
+    // Overall we have a sequence of a certain length
+    builder[0] = 0x30;    // ASN.1 encoding representing a SEQUENCE
+    // Build up overall size made up of -
+    // size of OID + size of bitstring encoding + size of actual key
+    size_t i = sizeof(_encodedRSAEncryptionOID) + 2 + bitstringEncLength +
+    [publicKeyBits length];
+    size_t j = [self encodeLength :&builder[1]: i];
+    [encKey appendBytes:builder length:j +1];
+    
+    // First part of the sequence is the OID
+    [encKey appendBytes:_encodedRSAEncryptionOID
+                 length:sizeof(_encodedRSAEncryptionOID)];
+    
+    // Now add the bitstring
+    builder[0] = 0x03;
+    j = [self encodeLength : &builder[1]: [publicKeyBits length] + 1];
+    builder[j+1] = 0x00;
+    [encKey appendBytes:builder length:j + 2];
+    
+    // Now the actual key
+    [encKey appendData:publicKeyBits];
+    
+    // Now translate the result to a Base64 string
+    NSString * ret = [encKey base64EncodedStringWithOptions:[encKey length]];
+    CFRelease(CFBridgingRetain(encKey));
+    return ret;
+}
 @end
 
 

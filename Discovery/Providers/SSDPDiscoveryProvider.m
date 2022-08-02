@@ -95,16 +95,16 @@ static double searchAttemptsBeforeKill = 6.0;
 - (void) stopDiscovery
 {
     [NSObject cancelPreviousPerformRequestsWithTarget:self];
-
+    
+    if (_refreshTimer)
+        [_refreshTimer invalidate];
+    
     if (_searchSocket)
         [_searchSocket close];
 
     if (_multicastSocket)
         [_multicastSocket close];
 
-    if (_refreshTimer)
-        [_refreshTimer invalidate];
-    
     _foundServices = [NSMutableDictionary new];
     _helloDevices = [NSMutableDictionary new];
     [_locationLoadQueue cancelAllOperations];
@@ -336,7 +336,17 @@ static double searchAttemptsBeforeKill = 6.0;
                             //Check that this is what is wanted
                             foundService.UUID = theUUID;
                             foundService.type =  theType;
-                            foundService.address = anAddress;
+
+                            NSURL* url = [NSURL URLWithString:location];
+
+                            if (url && url.scheme && url.host)
+                            {
+                                foundService.address = url.host;
+                            } else
+                            {
+                                foundService.address = anAddress;
+                            }
+
                             foundService.port = 3001;
                             isNew = YES;
                         }
