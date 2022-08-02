@@ -128,25 +128,30 @@ static double searchAttemptsBeforeKill = 6.0;
 
 #pragma mark - Device filter management
 
-- (void)addDeviceFilter:(NSDictionary *)parameters
+- (void)addDeviceFilter:(DiscoveryFilter *)filter
 {
-    NSDictionary *ssdpInfo = [parameters objectForKey:@"ssdp"];
-    _assert_state(ssdpInfo != nil, @"This device filter does not have ssdp discovery info");
-    
-    NSString *searchFilter = [ssdpInfo objectForKey:@"filter"];
-    _assert_state(searchFilter != nil, @"The ssdp info for this device filter has no search filter parameter");
+//<<<<<<< HEAD
+//    NSDictionary *ssdpInfo = [parameters objectForKey:@"ssdp"];
+//    _assert_state(ssdpInfo != nil, @"This device filter does not have ssdp discovery info");
+//
+//    NSString *searchFilter = [ssdpInfo objectForKey:@"filter"];
+//    _assert_state(searchFilter != nil, @"The ssdp info for this device filter has no search filter parameter");
+//=======
+    NSString *searchFilter = filter.filter;
+    NSAssert(searchFilter != nil, @"The discovery filter has no search filter parameter");
+//>>>>>>> 111_firetv
 
-    _serviceFilters = [_serviceFilters arrayByAddingObject:parameters];
+    _serviceFilters = [_serviceFilters arrayByAddingObject:filter];
 }
 
-- (void)removeDeviceFilter:(NSDictionary *)parameters
+- (void)removeDeviceFilter:(DiscoveryFilter *)filter
 {
-    NSString *searchTerm = [parameters objectForKey:@"serviceId"];
+    NSString *searchTerm = filter.serviceId;
     __block BOOL shouldRemove = NO;
     __block NSUInteger removalIndex;
     
-    [_serviceFilters enumerateObjectsUsingBlock:^(NSDictionary *searchFilter, NSUInteger idx, BOOL *stop) {
-        NSString *serviceId = [searchFilter objectForKey:@"serviceId"];
+    [_serviceFilters enumerateObjectsUsingBlock:^(DiscoveryFilter *searchFilter, NSUInteger idx, BOOL *stop) {
+        NSString *serviceId = searchFilter.serviceId;
         
         if ([serviceId isEqualToString:searchTerm])
         {
@@ -168,16 +173,14 @@ static double searchAttemptsBeforeKill = 6.0;
 
 - (void) sendSearchRequests:(BOOL)shouldKillInactiveDevices
 {
-    [_serviceFilters enumerateObjectsUsingBlock:^(NSDictionary *info, NSUInteger idx, BOOL *stop) {
-        NSDictionary *ssdpInfo = [info objectForKey:@"ssdp"];
-        NSString *searchFilter = [ssdpInfo objectForKey:@"filter"];
-        NSString *userAgentToken = [ssdpInfo objectForKey:@"userAgentToken"];
-        
-        [self sendRequestForFilter:searchFilter userAgentToken:userAgentToken killInactiveDevices:shouldKillInactiveDevices];
+    [_serviceFilters enumerateObjectsUsingBlock:^(DiscoveryFilter *info, NSUInteger idx, BOOL *stop) {
+        [self sendRequestForFilter:info.filter
+               killInactiveDevices:shouldKillInactiveDevices];
     }];
 }
 
-- (void) sendRequestForFilter:(NSString *)filter userAgentToken:(NSString *)userAgentToken killInactiveDevices:(BOOL)shouldKillInactiveDevices
+- (void) sendRequestForFilter:(NSString *)filter
+          killInactiveDevices:(BOOL)shouldKillInactiveDevices
 {
     if (shouldKillInactiveDevices)
     {
@@ -220,6 +223,7 @@ static double searchAttemptsBeforeKill = 6.0;
     CFHTTPMessageSetHeaderFieldValue(theSearchRequest, CFSTR("MAN"), CFSTR("\"ssdp:discover\""));
     CFHTTPMessageSetHeaderFieldValue(theSearchRequest, CFSTR("MX"), CFSTR("5"));
     CFHTTPMessageSetHeaderFieldValue(theSearchRequest, CFSTR("ST"),  (__bridge  CFStringRef)filter);
+    NSString *userAgentToken = ((NSNotFound != [filter rangeOfString:@"udap"].location) ? @"UDAP/2.0" : nil);
     CFHTTPMessageSetHeaderFieldValue(theSearchRequest, CFSTR("USER-AGENT"), (__bridge CFStringRef)[self userAgentForToken:userAgentToken]);
 
     NSData *message = CFBridgingRelease(CFHTTPMessageCopySerializedMessage(theSearchRequest));
@@ -405,7 +409,8 @@ static double searchAttemptsBeforeKill = 6.0;
 
 - (void) notifyDelegateOfNewService:(ServiceDescription *)service
 {
-    NSArray *serviceIds = [self serviceIdsForFilter:service.type];
+    NSArray *serviceIds = [self serviceIdsForFilter:service.type
+                                       andModelName:service.modelName];
 
     [serviceIds enumerateObjectsUsingBlock:^(NSString *serviceId, NSUInteger idx, BOOL *stop) {
         ServiceDescription *newService = [service copy];
@@ -417,7 +422,8 @@ static double searchAttemptsBeforeKill = 6.0;
 
 - (void) notifyDelegateOfLostService:(ServiceDescription *)service
 {
-    NSArray *serviceIds = [self serviceIdsForFilter:service.type];
+    NSArray *serviceIds = [self serviceIdsForFilter:service.type
+                                       andModelName:service.modelName];
 
     [serviceIds enumerateObjectsUsingBlock:^(NSString *serviceId, NSUInteger idx, BOOL *stop) {
         ServiceDescription *newService = [service copy];
@@ -433,8 +439,8 @@ static double searchAttemptsBeforeKill = 6.0;
 {
     __block BOOL containsFilter = NO;
 
-    [_serviceFilters enumerateObjectsUsingBlock:^(NSDictionary *serviceFilter, NSUInteger idx, BOOL *stop) {
-        NSString *ssdpFilter = [[serviceFilter objectForKey:@"ssdp" ] objectForKey:@"filter"];
+    [_serviceFilters enumerateObjectsUsingBlock:^(DiscoveryFilter *serviceFilter, NSUInteger idx, BOOL *stop) {
+        NSString *ssdpFilter = serviceFilter.filter;
         
         if ([ssdpFilter isEqualToString:filter])
         {
@@ -450,9 +456,9 @@ static double searchAttemptsBeforeKill = 6.0;
 /// or @c nil.
 - (NSArray *)requiredServicesForFilter:(NSString *)filter {
     NSPredicate *filterPredicate = [NSPredicate predicateWithFormat:@"%K LIKE %@",
-                                    @"ssdp.filter", filter];
-    NSDictionary *serviceFilter = [_serviceFilters filteredArrayUsingPredicate:filterPredicate].firstObject;
-    return [serviceFilter valueForKeyPath:@"ssdp.requiredServices"];
+                                    @"filter", filter];
+    DiscoveryFilter *serviceFilter = [_serviceFilters filteredArrayUsingPredicate:filterPredicate].firstObject;
+    return serviceFilter.requiredServices;
 }
 
 /// Returns the discovered services strings array for the given XML device
@@ -515,24 +521,23 @@ containingRequiredServices:(NSArray *)requiredServices {
 /// Returns a device description that contains services for the given filter. It
 /// may be the root device or any of the subdevices. If no device matches,
 /// returns @c nil.
-- (NSDictionary *)device:(NSDictionary *)device containingServicesWithFilter:(NSString *)filter {
-    NSArray *requiredServices = [self requiredServicesForFilter:filter];
-    return [self device:device
-containingRequiredServices:requiredServices];
+- (NSDictionary *)device:(NSDictionary *)device containingServicesWithFilter:(NSString *)filterName {
+    NSArray *requiredServices = [self requiredServicesForFilter:filterName];
+    return [self device:device containingRequiredServices:requiredServices];
 }
 
 - (NSArray *) serviceIdsForFilter:(NSString *)filter
+                     andModelName:(NSString *)modelName
 {
-    __block NSMutableArray *serviceIds = [NSMutableArray new];
-    
-    [_serviceFilters enumerateObjectsUsingBlock:^(NSDictionary *serviceFilter, NSUInteger idx, BOOL *stop) {
-        NSString *ssdpFilter = [[serviceFilter objectForKey:@"ssdp"] objectForKey:@"filter"];
-        
-        if ([ssdpFilter isEqualToString:filter])
-            [serviceIds addObject:[serviceFilter objectForKey:@"serviceId"]];
+    NSPredicate *filterNamePredicate = [NSPredicate predicateWithFormat:@"%K LIKE %@",
+                                        @"filter", filter];
+    NSPredicate *modelNamePredicate = [NSPredicate predicateWithBlock:^BOOL(DiscoveryFilter *filter, NSDictionary *bindings) {
+        return ((!filter.modelNameMatcherBlock) ||
+                (filter.modelNameMatcherBlock && modelName && filter.modelNameMatcherBlock(modelName)));
     }];
-    
-    return [NSArray arrayWithArray:serviceIds];
+    NSPredicate *predicate = [NSCompoundPredicate andPredicateWithSubpredicates:@[filterNamePredicate,
+                                                                                  modelNamePredicate]];
+    return [[_serviceFilters filteredArrayUsingPredicate:predicate] valueForKey:@"serviceId"];
 }
 
 - (NSArray *) serviceListForDevice:(id)device
