@@ -27,6 +27,7 @@
 #import "CTGuid.h"
 #import "DiscoveryManager.h"
 #import "Utils.h"
+#import "CastService.h"
 
 @implementation ConnectableDevice
 {
@@ -383,6 +384,18 @@
 
     if (serviceDescription.modelNumber)
         _consolidatedServiceDescription.modelNumber = serviceDescription.modelNumber;
+    if (serviceDescription.manufacturer) {
+        if (![serviceDescription.serviceId isEqualToString:kConnectSDKCastServiceId]) {
+            _consolidatedServiceDescription.manufacturer = serviceDescription.manufacturer;
+        }else{
+            if (_consolidatedServiceDescription.manufacturer == nil) {
+                _consolidatedServiceDescription.manufacturer = serviceDescription.manufacturer;
+            }
+        }
+    }
+    if (serviceDescription.address) {
+        _consolidatedServiceDescription.address = serviceDescription.address;
+    }
 }
 
 - (DeviceService *)serviceWithName:(NSString *)serviceId

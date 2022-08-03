@@ -22,7 +22,7 @@ typedef enum _CTASIAuthenticationType
 @interface CTASIAutorotatingViewController : UIViewController
 @end
 
-@interface CTASIAuthenticationDialog : CTASIAutorotatingViewController <UIActionSheetDelegate, UITableViewDelegate, UITableViewDataSource> {
+@interface CTASIAuthenticationDialog : CTASIAutorotatingViewController <UITableViewDelegate, UITableViewDataSource> {
 	CTASIHTTPRequest *request;
 	CTASIAuthenticationType type;
 	UITableView *tableView;

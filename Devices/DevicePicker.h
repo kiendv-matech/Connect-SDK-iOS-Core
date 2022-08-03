@@ -32,7 +32,7 @@
  *
  * You should not attempt to instantiate the DevicePicker on your own. Instead, get the reference from the DeviceManager with [[DeviceManager sharedManager] devicePicker];
  */
-@interface DevicePicker : NSObject <DiscoveryManagerDelegate, UIPopoverControllerDelegate, UITableViewDataSource, UITableViewDelegate, UIActionSheetDelegate>
+@interface DevicePicker : NSObject <DiscoveryManagerDelegate, UIPopoverControllerDelegate, UITableViewDataSource, UITableViewDelegate>
 
 /*! Delegate that receives selected/cancelled messages. */
 @property (nonatomic, weak) id<DevicePickerDelegate> delegate;
@@ -64,6 +64,6 @@
  *
  * @param sender The UIView that the action sheet should appear in
  */
-- (void) showActionSheet:(id)sender;
+//- (void) showActionSheet:(id)sender;
 
 @end
