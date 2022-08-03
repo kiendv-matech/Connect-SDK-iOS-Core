@@ -31,6 +31,7 @@
 
 #import "NSObject+FeatureNotSupported_Private.h"
 #import "XMLWriter+ConvenienceMethods.h"
+#import "Utils.h"
 
 #define kSmartShareName @"SmartShare™"
 
@@ -45,27 +46,22 @@ typedef enum {
     LGE_APPTOAPP_DATA_REQUEST
 } LGE_REQUEST_TYPE;
 
-@interface NetcastTVService() <ServiceCommandDelegate, UIAlertViewDelegate, DeviceServiceReachabilityDelegate>
+@interface NetcastTVService() <ServiceCommandDelegate, DeviceServiceReachabilityDelegate>
 {
     NSOperationQueue *_commandQueue;
-    BOOL _mouseVisible;
-
     GCDWebServer *_subscriptionServer;
-    NSString *_keyboardString;
-
-    // TODO: pull pairing timer from WebOSTVService
-    UIAlertView *_pairingAlert;
-
-    NSMutableDictionary *_subscribed;
     NSURL *_commandURL;
-
     BOOL _reconnectOnWake;
-
-    CGVector _mouseDistance;
-    BOOL _mouseIsMoving;
-
     DeviceServiceReachability *_serviceReachability;
 }
+
+// TODO: pull pairing timer from WebOSTVService
+@property (strong, nonatomic) UIAlertController *pairingAlert;
+@property (strong, nonatomic) NSMutableDictionary *subscribed;
+@property (strong, nonatomic) NSString *keyboardString;
+@property (assign, nonatomic) BOOL mouseVisible;
+@property (assign, nonatomic) BOOL mouseIsMoving;
+@property (assign, nonatomic) CGVector mouseDistance;
 
 @end
 
@@ -347,25 +343,24 @@ NSString *lgeUDAPRequestURI[8] = {
     NSString *ok = [[NSBundle mainBundle] localizedStringForKey:@"Connect_SDK_Pair_OK" value:@"OK" table:@"ConnectSDK"];
     NSString *cancel = [[NSBundle mainBundle] localizedStringForKey:@"Connect_SDK_Pair_Cancel" value:@"Cancel" table:@"ConnectSDK"];
 
-    _pairingAlert = [[UIAlertView alloc] initWithTitle:title message:message delegate:self cancelButtonTitle:cancel otherButtonTitles:ok, nil];
-    _pairingAlert.alertViewStyle = UIAlertViewStylePlainTextInput;
-    [_pairingAlert show];
-}
-
-- (void)willPresentAlertView:(UIAlertView *)alertView
-{
-    [alertView textFieldAtIndex:0].keyboardType = UIKeyboardTypeNumberPad;
-}
-
--(void)alertView:(UIAlertView *)alertView willDismissWithButtonIndex:(NSInteger)buttonIndex
-{
-    if (buttonIndex == 0)
-        [self dismissPairingWithSuccess:nil failure:nil];
-    else if (buttonIndex == 1)
-    {
-        NSString *pairingCode = [_pairingAlert textFieldAtIndex:0].text;
+    _pairingAlert = [UIAlertController alertControllerWithTitle:title message:message preferredStyle:UIAlertControllerStyleAlert];
+    __weak typeof(self) weakSelf = self;
+    UIAlertAction *okAction = [UIAlertAction actionWithTitle:ok style:UIAlertActionStyleDefault handler:^(UIAlertAction * _Nonnull action) {
+        NSString *pairingCode = weakSelf.pairingAlert.textFields[0].text;
         [self pairWithData:pairingCode];
-    }
+    }];
+    [_pairingAlert addAction:okAction];
+    UIAlertAction *cancelAction = [UIAlertAction actionWithTitle:cancel style:UIAlertActionStyleCancel handler:^(UIAlertAction * _Nonnull action) {
+        [weakSelf dismissPairingWithSuccess:nil failure:nil];
+    }];
+    [_pairingAlert addAction:cancelAction];
+    
+    [_pairingAlert addTextFieldWithConfigurationHandler:^(UITextField *textField) {
+             textField.placeholder = @"Enter pin code";
+             textField.keyboardType = UIKeyboardTypeNumberPad;
+    }];
+    UIViewController *topVC = [Utils topViewController];
+    [topVC presentViewController:_pairingAlert animated:YES completion:nil];
 }
 
 - (void) dismissPairingWithSuccess:(SuccessBlock)success failure:(FailureBlock)failure
@@ -415,15 +410,15 @@ NSString *lgeUDAPRequestURI[8] = {
 - (void) startSubscriptionServer
 {
     typedef void (^ TextEditedHandler)(NSString *);
-    
+    __weak typeof(self) weakSelf = self;
     TextEditedHandler textEditedHandler = ^(NSString *text) {
-        _keyboardString = text;
+        weakSelf.keyboardString = text;
     };
     
     typedef void (^ SubscriptionHandler)(NSString *, NSDictionary *);
     
     SubscriptionHandler subscriptionHandler = ^(NSString *eventName, NSDictionary *responseXML) {
-        ServiceSubscription *subscription = [_subscribed objectForKey:eventName];
+        ServiceSubscription *subscription = [weakSelf.subscribed objectForKey:eventName];
         
         if (subscription)
         {
@@ -578,9 +573,8 @@ NSString *lgeUDAPRequestURI[8] = {
     }
 
     DLog(@"[OUT] : %@ \n %@", [request allHTTPHeaderFields], xml);
-
-    [NSURLConnection sendAsynchronousRequest:request queue:self.commandQueue completionHandler:^(NSURLResponse *response, NSData *data, NSError *connectionError)
-    {
+    [[[NSURLSession sharedSession] dataTaskWithRequest:request completionHandler:^(NSData * _Nullable data, NSURLResponse * _Nullable response, NSError * _Nullable connectionError) {
+        
         DLog(@"[IN] : %@", [((NSHTTPURLResponse *)response) allHeaderFields]);
 
         if (connectionError || !data)
@@ -644,9 +638,8 @@ NSString *lgeUDAPRequestURI[8] = {
                 }
             }
         }
-
-    }];
-
+        
+    }] resume];
     // TODO: implement callIds
     return 0;
 }
@@ -1862,8 +1855,9 @@ NSString *lgeUDAPRequestURI[8] = {
             "</envelope>"];
 
     ServiceCommand *command = [ServiceCommand commandWithDelegate:self target:targetURL payload:payload];
+    __weak typeof(self) weakSelf = self;
     command.callbackComplete = ^(id responseObject){
-        _mouseVisible = YES;
+        weakSelf.mouseVisible = YES;
         
         if (success)
             success(nil);
@@ -1895,8 +1889,9 @@ NSString *lgeUDAPRequestURI[8] = {
             "</envelope>"];
 
     ServiceCommand *command = [ServiceCommand commandWithDelegate:self target:targetURL payload:payload];
+    __weak typeof(self) weakSelf = self;
     command.callbackComplete = ^(id responseObject){
-        _mouseVisible = NO;
+        weakSelf.mouseVisible = NO;
 
         if (success)
             success(nil);
@@ -1937,19 +1932,20 @@ NSString *lgeUDAPRequestURI[8] = {
     _mouseDistance = CGVectorMake(0, 0);
 
     ServiceCommand *command = [ServiceCommand commandWithDelegate:self target:targetURL payload:payload];
+    __weak typeof(self) weakSelf = self;
     command.callbackComplete = ^(id responseObject)
     {
-        if (_mouseDistance.dx != 0 || _mouseDistance.dy != 0)
+        if (weakSelf.mouseDistance.dx != 0 || weakSelf.mouseDistance.dy != 0)
             [self moveMouseWithSuccess:nil failure:nil];
         else
-            _mouseIsMoving = NO;
+            weakSelf.mouseIsMoving = NO;
 
         if (success)
             success(responseObject);
     };
     command.callbackError = ^(NSError *error)
     {
-        _mouseIsMoving = NO;
+        weakSelf.mouseIsMoving = NO;
 
         if (failure)
             failure(error);
@@ -2116,10 +2112,10 @@ NSString *lgeUDAPRequestURI[8] = {
     if (_keyboardString && _keyboardString.length > 0)
     {
         [self sendText:_keyboardString state:@"EditEnd" success:nil failure:nil];
-
+        __weak typeof(self) weakSelf = self;
         [self sendKeyCode:NetcastTVKeyCodeRed success:^(id responseObject)
         {
-            _keyboardString = @"";
+            weakSelf.keyboardString = @"";
 
             if (success)
                 success(nil);

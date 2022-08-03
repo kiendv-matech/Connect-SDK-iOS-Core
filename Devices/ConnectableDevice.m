@@ -26,6 +26,7 @@
 #import "TextInputControl.h"
 #import "CTGuid.h"
 #import "DiscoveryManager.h"
+#import "Utils.h"
 
 @implementation ConnectableDevice
 {
@@ -313,8 +314,14 @@
 
     if (service.isConnectable && !service.connected)
     {
-        if (self.delegate && [self.delegate respondsToSelector:@selector(connectableDeviceConnectionRequired:forService:)])
-            dispatch_on_main(^{ [_delegate connectableDeviceConnectionRequired:self forService:service]; });
+        if (self.delegate && [self.delegate respondsToSelector:@selector(connectableDeviceConnectionRequired:forService:)]) {
+            __weak typeof(self) weakSelf = self;
+            dispatch_on_main(^{
+                typeof(self) strongSelf = weakSelf;
+                [strongSelf->_delegate connectableDeviceConnectionRequired:strongSelf forService:service];
+                
+            });
+        }
     }
 
     [self updateCapabilitiesList:oldCapabilities];
@@ -454,8 +461,13 @@
             dispatch_on_main(^{ [self.delegate connectableDevice:self service:service pairingRequiredOfType:pairingType withData:pairingData]; });
         else
         {
-            if (pairingType == DeviceServicePairingTypeAirPlayMirroring)
-                [(UIAlertView *)pairingData show];
+            if (pairingType == DeviceServicePairingTypeAirPlayMirroring){
+                dispatch_on_main(^{
+                    UIAlertController *alertVC = (UIAlertController *)pairingData;
+                    UIViewController *topVC = [Utils topViewController];
+                    [topVC presentViewController:alertVC animated:YES completion:nil];
+                });
+            }
         }
     }
 }
