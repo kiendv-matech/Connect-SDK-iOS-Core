@@ -23,7 +23,7 @@
 
 #import "NSObject+FeatureNotSupported_Private.h"
 
-@interface AirPlayService () <WKNavigationDelegate, ServiceCommandDelegate, UIAlertViewDelegate>
+@interface AirPlayService () <WKNavigationDelegate, ServiceCommandDelegate>
 
 @end
 
@@ -44,14 +44,10 @@ static AirPlayServiceMode airPlayServiceMode;
     return airPlayServiceMode;
 }
 
-+ (NSDictionary *) discoveryParameters
++ (DiscoveryFilter *) discoveryParameters
 {
-    return @{
-        @"serviceId" : kConnectSDKAirPlayServiceId,
-        @"zeroconf" : @{
-                @"filter" : @"_airplay._tcp"
-        }
-    };
+    return [DiscoveryFilter filterWithServiceId:kConnectSDKAirPlayServiceId
+                                      andFilter:@"_airplay._tcp"];
 }
 
 - (void) updateCapabilities

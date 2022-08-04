@@ -28,10 +28,6 @@
 static NSString *const kSSDPMulticastIPAddress = @"239.255.255.250";
 static const NSUInteger kSSDPMulticastTCPPort = 1900;
 
-static NSString *const kKeySSDP = @"ssdp";
-static NSString *const kKeyFilter = @"filter";
-static NSString *const kKeyServiceID = @"serviceId";
-
 static inline NSString *httpHeaderValue(CFHTTPMessageRef msg, NSString *header) {
     return CFBridgingRelease(CFHTTPMessageCopyHeaderFieldValue(msg, (__bridge CFStringRef)header));
 }
@@ -84,7 +80,8 @@ static inline NSString *httpHeaderValue(CFHTTPMessageRef msg, NSString *header) 
 /// Tests that an attempt to remove a device filter that wasn't added before is
 /// handled gracefully.
 - (void)testRemovingUnknownDeviceFilterShouldNotCrash {
-    NSDictionary *filter = @{kKeySSDP: @{kKeyFilter: @"some:thing"}};
+    DiscoveryFilter *filter = [DiscoveryFilter filterWithServiceId:nil
+                                                         andFilter:@"some:thing"];
     [self.provider removeDeviceFilter:filter];
 
     XCTAssert(YES, @"Removing not previously add device filter must not crash");
@@ -106,7 +103,8 @@ static inline NSString *httpHeaderValue(CFHTTPMessageRef msg, NSString *header) 
     id searchSocketMock = OCMClassMock([SSDPSocketListener class]);
     self.provider.searchSocket = searchSocketMock;
 
-    NSDictionary *filter = @{kKeySSDP: @{kKeyFilter: @"some:thing"}};
+    DiscoveryFilter *filter = [DiscoveryFilter filterWithServiceId:nil
+                                                         andFilter:@"some:thing"];
     [self.provider addDeviceFilter:filter];
 
     // Act
@@ -138,7 +136,7 @@ static inline NSString *httpHeaderValue(CFHTTPMessageRef msg, NSString *header) 
         XCTAssertLessThanOrEqual(mx, 5, @"The MX header value must be <= 5");
 
         NSString *searchTarget = httpHeaderValue(msg, @"ST");
-        XCTAssertEqualObjects(searchTarget, filter[kKeySSDP][kKeyFilter], @"The Search Target header value is incorrect");
+        XCTAssertEqualObjects(searchTarget, filter.filter, @"The Search Target header value is incorrect");
 
         NSString *userAgent = httpHeaderValue(msg, @"USER-AGENT");
         if (userAgent) {
@@ -170,8 +168,8 @@ static inline NSString *httpHeaderValue(CFHTTPMessageRef msg, NSString *header) 
     self.provider.searchSocket = searchSocketMock;
 
     NSString *serviceType = @"urn:schemas-upnp-org:device:thing:1";
-    NSDictionary *filter = @{kKeySSDP: @{kKeyFilter: serviceType},
-                             kKeyServiceID: @"SomethingNew"};
+    DiscoveryFilter *filter = [DiscoveryFilter filterWithServiceId:@"SomethingNew"
+                                                         andFilter:serviceType];
     [self.provider addDeviceFilter:filter];
 
     NSString *kServiceAddress = @"127.0.1.2";
@@ -214,7 +212,7 @@ static inline NSString *httpHeaderValue(CFHTTPMessageRef msg, NSString *header) 
     OCMExpect(([delegateMock discoveryProvider:[OCMArg isEqual:self.provider]
                                 didFindService:[OCMArg checkWithBlock:^BOOL(ServiceDescription *service) {
         XCTAssertEqualObjects(service.address, kServiceAddress, @"The service's address is incorrect");
-        XCTAssertEqualObjects(service.serviceId, filter[kKeyServiceID], @"The service ID is incorrect");
+        XCTAssertEqualObjects(service.serviceId, filter.serviceId, @"The service ID is incorrect");
         XCTAssertEqualObjects(service.UUID, kUUID, @"The UUID is incorrect");
         XCTAssertEqualObjects(service.type, serviceType, @"The service type is incorrect");
         XCTAssertEqualObjects(service.friendlyName, @"short user-friendly title", @"The friendly name is incorrect");
@@ -266,8 +264,8 @@ static inline NSString *httpHeaderValue(CFHTTPMessageRef msg, NSString *header) 
     self.provider.searchSocket = searchSocketMock;
 
     NSString *serviceType = @"urn:schemas-upnp-org:device:thing:1";
-    NSDictionary *filter = @{kKeySSDP: @{kKeyFilter: serviceType},
-                             kKeyServiceID: @"SomethingNew"};
+    DiscoveryFilter *filter = [DiscoveryFilter filterWithServiceId:@"SomethingNew"
+                                                         andFilter:serviceType];
     [self.provider addDeviceFilter:filter];
 
     NSString *kServiceAddress = @"127.0.1.2";

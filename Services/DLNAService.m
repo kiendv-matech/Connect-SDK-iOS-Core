@@ -97,18 +97,14 @@ static const NSInteger kValueNotFound = -1;
     [self setCapabilities:capabilities];
 }
 
-+ (NSDictionary *) discoveryParameters
++ (DiscoveryFilter *) discoveryParameters
 {
-    return @{
-            @"serviceId": kConnectSDKDLNAServiceId,
-            @"ssdp":@{
-                    @"filter":@"urn:schemas-upnp-org:device:MediaRenderer:1",
-                    @"requiredServices":@[
-                            @"urn:schemas-upnp-org:service:AVTransport:1",
-                            @"urn:schemas-upnp-org:service:RenderingControl:1"
-                    ]
-            }
-    };
+    return [DiscoveryFilter filterWithServiceId:kConnectSDKDLNAServiceId
+                                         filter:@"urn:schemas-upnp-org:device:MediaRenderer:1"
+                            andRequiredServices:@[
+                                                  @"urn:schemas-upnp-org:service:AVTransport:1",
+                                                  @"urn:schemas-upnp-org:service:RenderingControl:1"
+                                                ]];
 }
 
 - (id) initWithJSONObject:(NSDictionary *)dict
@@ -333,13 +329,20 @@ static const NSInteger kValueNotFound = -1;
 
             if (upnpFault)
             {
-                NSString *errorDescription = [[[[upnpFault objectForKey:@"detail"] objectForKeyEndingWithString:@":UPnPError"] objectForKeyEndingWithString:@":errorDescription"] objectForKey:@"text"];
-
-                if (!errorDescription)
-                    errorDescription = @"Unknown UPnP error";
-
-                if (command.callbackError)
-                    dispatch_on_main(^{ command.callbackError([ConnectError generateErrorWithCode:ConnectStatusCodeTvError andDetails:errorDescription]); });
+                NSString *errorDescription = [[[[upnpFault objectForKey:@"detail"] objectForKeyEndingWithString:@"UPnPError"] objectForKeyEndingWithString:@"errorDescription"] objectForKey:@"text"];
+                NSNumber *errorCode = [[[[upnpFault objectForKey:@"detail"] objectForKeyEndingWithString:@"UPnPError"] objectForKeyEndingWithString:@"errorCode"] objectForKey:@"text"];
+                if (errorCode != nil && errorCode.integerValue == 701) {
+                    // ignore for samsung sometime raise this error
+                    if (command.callbackComplete)
+                        dispatch_on_main(^{ command.callbackComplete(dataXML); });
+                } else {
+                    if (!errorDescription)
+                        errorDescription = @"Unknown UPnP error";
+                    
+                    if (command.callbackError)
+                        dispatch_on_main(^{ command.callbackError([ConnectError generateErrorWithCode:ConnectStatusCodeTvError andDetails:errorDescription]); });
+                }
+                
             } else
             {
                 if (command.callbackComplete)
@@ -751,12 +754,24 @@ static const NSInteger kValueNotFound = -1;
 {
     if (!timeString || [timeString isEqualToString:@""])
         return 0;
-
+    
+    // fix: samsung time 0:00:21.632
+    NSArray *timeComponents = [timeString componentsSeparatedByString:@":"];
+    if (timeComponents.count != 3) {
+        return 0;
+    }
+    NSString *timeFormatterString = @"HH:m:ss";
+    NSString *midnightTimeString = @"00:00:00";
+    if ([timeString containsString:@"."]) {
+        timeFormatterString = @"HH:m:ss.SSS";
+        midnightTimeString = @"00:00:00.000";
+    }
+   
     NSDateFormatter *formatter = [[NSDateFormatter alloc] init];
-    [formatter setDateFormat:@"HH:m:ss"];
+    [formatter setDateFormat:timeFormatterString];
 
     NSDate *time = [formatter dateFromString:timeString];
-    NSDate *midnight = [formatter dateFromString:@"00:00:00"];
+    NSDate *midnight = [formatter dateFromString:midnightTimeString];
 
     NSTimeInterval timeInterval = [time timeIntervalSinceDate:midnight];
 

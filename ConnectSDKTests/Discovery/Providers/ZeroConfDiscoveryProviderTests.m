@@ -25,10 +25,6 @@
 #import "ZeroConfDiscoveryProvider_Private.h"
 #import "ServiceDescription.h"
 
-static NSString *const kKeyZeroconf = @"zeroconf";
-static NSString *const kKeyFilter = @"filter";
-static NSString *const kKeyServiceID = @"serviceId";
-
 
 /// Tests for the ZeroConfDiscoveryProvider class.
 /// NSNetServiceBrowser and NSNetService classes are mocked to avoid using the
@@ -65,7 +61,8 @@ static NSString *const kKeyServiceID = @"serviceId";
     self.provider.netServiceBrowser = serviceBrowserMock;
 
     NSString *serviceType = @"zerotest";
-    NSDictionary *filter = @{kKeyZeroconf: @{kKeyFilter: serviceType}};
+    DiscoveryFilter *filter = [DiscoveryFilter filterWithServiceId:nil
+                                                         andFilter:serviceType];
     [self.provider addDeviceFilter:filter];
 
     // Act
@@ -97,7 +94,8 @@ static NSString *const kKeyServiceID = @"serviceId";
     self.provider.netServiceBrowser = serviceBrowserMock;
 
     NSString *serviceType = @"zerotest";
-    NSDictionary *filter = @{kKeyZeroconf: @{kKeyFilter: serviceType}};
+    DiscoveryFilter *filter = [DiscoveryFilter filterWithServiceId:nil
+                                                         andFilter:serviceType];
     [self.provider addDeviceFilter:filter];
 
     id netServiceMock = OCMClassMock([NSNetService class]);
@@ -129,8 +127,8 @@ static NSString *const kKeyServiceID = @"serviceId";
     self.provider.delegate = delegateMock;
 
     NSString *serviceType = @"zerotest";
-    NSDictionary *filter = @{kKeyZeroconf: @{kKeyFilter: serviceType},
-                             kKeyServiceID: @"ZeroService"};
+    DiscoveryFilter *filter = [DiscoveryFilter filterWithServiceId:@"ZeroService"
+                                                         andFilter:serviceType];
     [self.provider addDeviceFilter:filter];
 
     id netServiceMock = OCMClassMock([NSNetService class]);
@@ -167,7 +165,7 @@ static NSString *const kKeyServiceID = @"serviceId";
                                didFindService:[OCMArg checkWithBlock:^BOOL(ServiceDescription *service) {
         XCTAssertEqualObjects(service.address, kServiceAddress, @"The service's address is incorrect");
         XCTAssertEqual(service.port, kServicePort, @"The port is incorrect");
-        XCTAssertEqualObjects(service.serviceId, filter[kKeyServiceID], @"The service ID is incorrect");
+        XCTAssertEqualObjects(service.serviceId, filter.serviceId, @"The service ID is incorrect");
         XCTAssertEqualObjects(service.UUID, [netServiceMock name], @"The UUID is incorrect");
         XCTAssertEqualObjects(service.friendlyName, [netServiceMock name], @"The friendly name is incorrect");
         XCTAssertNil(service.manufacturer, @"The manufacturer should be nil");
@@ -207,8 +205,8 @@ static NSString *const kKeyServiceID = @"serviceId";
     self.provider.delegate = delegateMock;
 
     NSString *serviceType = @"zerotest";
-    NSDictionary *filter = @{kKeyZeroconf: @{kKeyFilter: serviceType},
-                             kKeyServiceID: @"ZeroService"};
+    DiscoveryFilter *filter = [DiscoveryFilter filterWithServiceId:@"ZeroService"
+                                                         andFilter:serviceType];
     [self.provider addDeviceFilter:filter];
 
     id netServiceMock = OCMClassMock([NSNetService class]);
@@ -292,8 +290,8 @@ static NSString *const kKeyServiceID = @"serviceId";
     self.provider.delegate = delegateMock;
 
     NSString *serviceType = @"zerotest";
-    NSDictionary *filter = @{kKeyZeroconf: @{kKeyFilter: serviceType},
-                             kKeyServiceID: @"ZeroService"};
+    DiscoveryFilter *filter = [DiscoveryFilter filterWithServiceId:@"ZeroService"
+                                                         andFilter:serviceType];
     [self.provider addDeviceFilter:filter];
 
     id netServiceMock = OCMClassMock([NSNetService class]);
@@ -345,8 +343,8 @@ static NSString *const kKeyServiceID = @"serviceId";
     self.provider.delegate = delegateMock;
 
     NSString *serviceType = @"zerotest";
-    NSDictionary *filter = @{kKeyZeroconf: @{kKeyFilter: serviceType},
-                             kKeyServiceID: @"ZeroService"};
+    DiscoveryFilter *filter = [DiscoveryFilter filterWithServiceId:@"ZeroService"
+                                                         andFilter:serviceType];
     [self.provider addDeviceFilter:filter];
 
     id netServiceMock = OCMClassMock([NSNetService class]);
