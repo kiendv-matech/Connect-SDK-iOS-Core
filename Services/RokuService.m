@@ -415,9 +415,11 @@ static NSMutableArray *registeredApps = nil;
         [request setHTTPMethod:@"GET"];
         [request addValue:@"0" forHTTPHeaderField:@"Content-Length"];
     }
-
-    [NSURLConnection sendAsynchronousRequest:request queue:[NSOperationQueue mainQueue] completionHandler:^(NSURLResponse *response, NSData *data, NSError *connectionError)
-    {
+    
+    NSURLSessionConfiguration *sessionConfiguration = [NSURLSessionConfiguration defaultSessionConfiguration];
+    NSURLSession *urlSession = [NSURLSession sessionWithConfiguration:sessionConfiguration delegate:nil delegateQueue:[NSOperationQueue mainQueue]];
+    
+    [[urlSession dataTaskWithRequest:request completionHandler:^(NSData * _Nullable data, NSURLResponse * _Nullable response, NSError * _Nullable connectionError) {
         NSHTTPURLResponse *httpResponse = (NSHTTPURLResponse *)response;
         
         if (connectionError)
@@ -441,8 +443,7 @@ static NSMutableArray *registeredApps = nil;
             if (command.callbackComplete)
                 dispatch_on_main(^{ command.callbackComplete(dataString); });
         }
-    }];
-
+    }] resume];
     // TODO: need to implement callIds in here
     return 0;
 }

@@ -561,6 +561,10 @@ NSString *lgeUDAPRequestURI[8] = {
 
 - (int) sendCommand:(ServiceCommand *)command withPayload:(NSString *)payload toURL:(NSURL *)URL
 {
+    DLog(@"[OUT] : %@ \n %@", [request allHTTPHeaderFields], xml);
+    
+    NSURLSessionConfiguration *sessionConfiguration = [NSURLSessionConfiguration defaultSessionConfiguration];
+    NSURLSession *urlSession = [NSURLSession sessionWithConfiguration:sessionConfiguration delegate:nil delegateQueue:_commandQueue];
     NSString *xml = [NSString stringWithFormat:@"<?xml version=\"1.0\" encoding=\"utf-8\"?>%@", payload];
     NSData *xmlData = [xml dataUsingEncoding:NSUTF8StringEncoding allowLossyConversion:YES];
 
@@ -580,9 +584,7 @@ NSString *lgeUDAPRequestURI[8] = {
         [request setHTTPBody:xmlData];
     }
 
-    DLog(@"[OUT] : %@ \n %@", [request allHTTPHeaderFields], xml);
-    
-    [[[NSURLSession sharedSession] dataTaskWithRequest:request completionHandler:^(NSData * _Nullable data, NSURLResponse * _Nullable response, NSError * _Nullable connectionError) {
+    [[urlSession dataTaskWithRequest:request completionHandler:^(NSData * _Nullable data, NSURLResponse * _Nullable response, NSError * _Nullable connectionError) {
         DLog(@"[IN] : %@", [((NSHTTPURLResponse *)response) allHeaderFields]);
 
         if (connectionError || !data)
