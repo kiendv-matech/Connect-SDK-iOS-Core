@@ -54,7 +54,7 @@
 }
 @end
 
-@interface AirPlayServiceMirrored () <ServiceCommandDelegate, UIWebViewDelegate>
+@interface AirPlayServiceMirrored () <ServiceCommandDelegate, WKNavigationDelegate>
 
 @property (nonatomic, copy) SuccessBlock launchSuccessBlock;
 @property (nonatomic, copy) FailureBlock launchFailureBlock;
@@ -302,7 +302,7 @@
             return;
         } else
         {
-            NSString *webAppHost = _webAppWebView.request.URL.host;
+            NSString *webAppHost = _webAppWebView.URL.host;
 
             if ([webAppId rangeOfString:webAppHost].location != NSNotFound)
             {
@@ -329,16 +329,21 @@
 
     DLog(@"Created a web view with bounds %@", NSStringFromCGRect(self.secondWindow.bounds));
 
-    _webAppWebView = [[UIWebView alloc] initWithFrame:self.secondWindow.bounds];
-    _webAppWebView.allowsInlineMediaPlayback = YES;
-    _webAppWebView.mediaPlaybackAllowsAirPlay = NO;
-    _webAppWebView.mediaPlaybackRequiresUserAction = NO;
+    WKProcessPool *commonProcessPool = [[WKProcessPool alloc] init];
+    WKWebViewConfiguration *webViewConfig = [[WKWebViewConfiguration alloc] init];
+    webViewConfig.processPool = commonProcessPool;
+    webViewConfig.allowsInlineMediaPlayback = true;
+    webViewConfig.mediaPlaybackAllowsAirPlay = false;
+    webViewConfig.mediaPlaybackRequiresUserAction = false;
+
+    _webAppWebView = [[WKWebView alloc] initWithFrame:self.secondWindow.bounds configuration:webViewConfig];
 
     AirPlayServiceViewController *secondScreenViewController = [[AirPlayServiceViewController alloc] init];
     secondScreenViewController.view = _webAppWebView;
-    _webAppWebView.delegate = self;
+    _webAppWebView.navigationDelegate = self;
     self.secondWindow.rootViewController = secondScreenViewController;
     self.secondWindow.hidden = NO;
+
 
     LaunchSession *launchSession = [LaunchSession launchSessionForAppId:webAppId];
     launchSession.sessionType = LaunchSessionTypeWebApp;
@@ -388,7 +393,7 @@
 {
     if (self.webAppWebView && self.connected)
     {
-        NSString *webAppHost = self.webAppWebView.request.URL.host;
+        NSString *webAppHost = self.webAppWebView.URL.host;
 
         if ([webAppLaunchSession.appId rangeOfString:webAppHost].location != NSNotFound)
         {
@@ -442,7 +447,7 @@
         _secondWindow.screen = nil;
         _secondWindow = nil;
 
-        _webAppWebView.delegate = nil;
+        _webAppWebView.navigationDelegate = nil;
         _webAppWebView = nil;
     }
 
@@ -470,10 +475,9 @@
     return [self sendNotSupportedFailure:failure];
 }
 
-#pragma mark - UIWebViewDelegate
+#pragma mark - WKWebViewDelegate
 
-- (void)webView:(UIWebView *)webView didFailLoadWithError:(NSError *)error
-{
+- (void)webView:(WKWebView *)webView didFailNavigation:(WKNavigation *)navigation withError:(NSError *)error {
     DLog(@"%@", error.localizedDescription);
 
     if (self.launchFailureBlock)
@@ -483,8 +487,8 @@
     self.launchFailureBlock = nil;
 }
 
-- (BOOL)webView:(UIWebView *)webView shouldStartLoadWithRequest:(NSURLRequest *)request navigationType:(UIWebViewNavigationType)navigationType
-{
+- (void)webView:(WKWebView *)webView decidePolicyForNavigationAction:(WKNavigationAction *)navigationAction decisionHandler:(void (^)(WKNavigationActionPolicy))decisionHandler {
+    NSURLRequest *request = navigationAction.request;
     if ([request.URL.absoluteString hasPrefix:@"connectsdk://"])
     {
         NSString *jsonString = [[request.URL.absoluteString componentsSeparatedByString:@"connectsdk://"] lastObject];
@@ -502,7 +506,7 @@
 
         if (self.activeWebAppSession)
         {
-            NSString *webAppHost = self.webAppWebView.request.URL.host;
+            NSString *webAppHost = self.webAppWebView.URL.host;
 
             // check if current running web app matches the current web app session
             if ([self.activeWebAppSession.launchSession.appId rangeOfString:webAppHost].location != NSNotFound)
@@ -515,16 +519,15 @@
                 [self.activeWebAppSession disconnectFromWebApp];
         }
 
-        return NO;
+        decisionHandler(WKNavigationActionPolicyCancel);
     } else
     {
-        return YES;
+        decisionHandler(WKNavigationActionPolicyAllow);
     }
 }
 
-- (void)webViewDidFinishLoad:(UIWebView *)webView
-{
-    DLog(@"%@", webView.request.URL.absoluteString);
+- (void)webView:(WKWebView *)webView didFinishNavigation:(WKNavigation *)navigation {
+    DLog(@"%@", webView.URL.absoluteString);
 
     if (self.launchSuccessBlock)
         self.launchSuccessBlock(nil);
@@ -533,9 +536,8 @@
     self.launchFailureBlock = nil;
 }
 
-- (void)webViewDidStartLoad:(UIWebView *)webView
-{
-    DLog(@"%@", webView.request.URL.absoluteString);
+- (void)webView:(WKWebView *)webView didStartProvisionalNavigation:(WKNavigation *)navigation {
+    DLog(@"%@", webView.URL.absoluteString);
 }
 
 @end

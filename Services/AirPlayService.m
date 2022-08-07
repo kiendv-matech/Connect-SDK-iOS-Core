@@ -19,11 +19,12 @@
 //
 
 #import "AirPlayService_Private.h"
+#import <WebKit/WebKit.h>
 #import "ConnectError.h"
 
 #import "NSObject+FeatureNotSupported_Private.h"
 
-@interface AirPlayService () <UIWebViewDelegate, ServiceCommandDelegate>
+@interface AirPlayService () <WKNavigationDelegate, ServiceCommandDelegate>
 
 @end
 
