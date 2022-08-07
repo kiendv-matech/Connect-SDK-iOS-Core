@@ -28,11 +28,12 @@
 #import "CommonMacros.h"
 #import "NSMutableDictionary+NilSafe.h"
 #import "NSObject+FeatureNotSupported_Private.h"
+#import "Utils.h"
 
 #define kKeyboardEnter @"\x1b ENTER \x1b"
 #define kKeyboardDelete @"\x1b DELETE \x1b"
 
-@interface WebOSTVService () <UIAlertViewDelegate, WebOSTVServiceSocketClientDelegate>
+@interface WebOSTVService () <WebOSTVServiceSocketClientDelegate>
 {
     NSArray *_permissions;
 
@@ -40,14 +41,15 @@
     NSMutableDictionary *_appToAppIdMappings;
 
     NSTimer *_pairingTimer;
-    UIAlertView *_pairingAlert;
 
     NSMutableArray *_keyboardQueue;
     BOOL _keyboardQueueProcessing;
 
     BOOL _mouseInit;
-    UIAlertView *_pinAlertView;
 }
+
+@property (strong, nonatomic) UIAlertController *pairingAlert;
+@property (strong, nonatomic) UIAlertController *pinAlertView;
 
 @end
 
@@ -298,48 +300,61 @@
 
 #pragma mark - Paring alert
 
--(void) showAlert
+- (void) showAlert
 {
     NSString *title = [[NSBundle mainBundle] localizedStringForKey:@"Connect_SDK_Pair_Title" value:@"Pairing with device" table:@"ConnectSDK"];
     NSString *message = [[NSBundle mainBundle] localizedStringForKey:@"Connect_SDK_Pair_Request" value:@"Please confirm the connection on your device" table:@"ConnectSDK"];
     NSString *ok = [[NSBundle mainBundle] localizedStringForKey:@"Connect_SDK_Pair_OK" value:@"OK" table:@"ConnectSDK"];
     NSString *cancel = [[NSBundle mainBundle] localizedStringForKey:@"Connect_SDK_Pair_Cancel" value:@"Cancel" table:@"ConnectSDK"];
+
+    __weak typeof(self) weakSelf = self;
+    _pairingAlert = [UIAlertController alertControllerWithTitle:title message:message preferredStyle:UIAlertControllerStyleAlert];
+    UIAlertAction *okAction = [UIAlertAction actionWithTitle:ok style:UIAlertActionStyleDefault handler:^(UIAlertAction * _Nonnull action) {
+        if(weakSelf.pairingType == DeviceServicePairingTypePinCode || weakSelf.pairingType == DeviceServicePairingTypeMixed) {
+            NSString *pairingCode = weakSelf.pairingAlert.textFields[0].text;
+            [weakSelf sendPairingKey:pairingCode success:nil failure:nil];
+        }
+    }];
+    UIAlertAction *cancelAction = [UIAlertAction actionWithTitle:cancel style:UIAlertActionStyleCancel handler:^(UIAlertAction * _Nonnull action) {
+        [weakSelf disconnect];
+    }];
+    [_pairingAlert addTextFieldWithConfigurationHandler:^(UITextField *textField) {
+             textField.placeholder = @"Enter pin code";
+             textField.keyboardType = UIKeyboardTypeNumberPad;
+    }];
+    [_pairingAlert addAction:cancelAction];
+    [_pairingAlert addAction:okAction];
     
-    _pairingAlert = [[UIAlertView alloc] initWithTitle:title message:message delegate:self cancelButtonTitle:cancel otherButtonTitles:ok, nil];
     if(self.pairingType == DeviceServicePairingTypePinCode || self.pairingType == DeviceServicePairingTypeMixed){
-        _pairingAlert.alertViewStyle = UIAlertViewStylePlainTextInput;
         _pairingAlert.message = [[NSBundle mainBundle] localizedStringForKey:@"Connect_SDK_Pair_Request_Pin" value:@"Please enter the pin code" table:@"ConnectSDK"];
     }
-    dispatch_on_main(^{ [_pairingAlert show]; });
+    dispatch_on_main(^{
+        UIViewController *topViewController = [Utils topViewController];
+        [topViewController presentViewController:weakSelf.pairingAlert animated:true completion:nil];
+    });
 }
 
--(void)alertView:(UIAlertView *)alertView didDismissWithButtonIndex:(NSInteger)buttonIndex
-{
-    if(alertView == _pairingAlert){
-        if (buttonIndex == 0){
-            [self disconnect];
-        }else
-            if((self.pairingType == DeviceServicePairingTypePinCode || self.pairingType == DeviceServicePairingTypeMixed) && buttonIndex == 1){
-                NSString *pairingCode = [alertView textFieldAtIndex:0].text;
-                [self sendPairingKey:pairingCode success:nil failure:nil];
-            }
-    }
-}
-
--(void) showAlertWithTitle:(NSString *)title andMessage:(NSString *)message
+- (void) showAlertWithTitle:(NSString *)title andMessage:(NSString *)message
 {
     NSString *alertTitle = [[NSBundle mainBundle] localizedStringForKey:@"Connect_SDK_Pair_Title" value:title table:@"ConnectSDK"];
     NSString *alertMessage = [[NSBundle mainBundle] localizedStringForKey:@"Connect_SDK_Pair_Request" value:message table:@"ConnectSDK"];
     NSString *ok = [[NSBundle mainBundle] localizedStringForKey:@"Connect_SDK_Pair_OK" value:@"OK" table:@"ConnectSDK"];
     if(!_pinAlertView){
-        _pinAlertView = [[UIAlertView alloc] initWithTitle:alertTitle message:alertMessage delegate:self cancelButtonTitle:nil otherButtonTitles:ok, nil];
+        _pinAlertView = [UIAlertController alertControllerWithTitle:alertTitle message:alertMessage preferredStyle:UIAlertControllerStyleAlert];
+        UIAlertAction *okAction = [UIAlertAction actionWithTitle:ok style:UIAlertActionStyleDefault handler:nil];
+        [_pinAlertView addAction:okAction];
     }
-    dispatch_on_main(^{ [_pinAlertView show]; });
+    __weak typeof(self) weakSelf = self;
+    dispatch_on_main(^{
+        UIViewController *topViewController = [Utils topViewController];
+        [topViewController presentViewController:weakSelf.pairingAlert animated:true completion:nil];
+    });
 }
 
 -(void)dismissPinAlertView{
-    if (_pinAlertView && _pinAlertView.isVisible){
-        [_pinAlertView dismissWithClickedButtonIndex:0 animated:NO];
+    if (_pinAlertView && !_pinAlertView.isBeingDismissed){
+//        [_pinAlertView dismissWithClickedButtonIndex:0 animated:NO];
+        [_pinAlertView dismissViewControllerAnimated:true completion:nil];
     }
 }
 
@@ -352,8 +367,14 @@
 
 - (void) socket:(WebOSTVServiceSocketClient *)socket registrationFailed:(NSError *)error
 {
-    if (_pairingAlert && _pairingAlert.isVisible)
-        dispatch_on_main(^{ [_pairingAlert dismissWithClickedButtonIndex:0 animated:NO]; });
+    __weak typeof(self) weakSelf = self;
+    if (_pairingAlert && !_pairingAlert.isBeingDismissed)
+        dispatch_on_main(^{
+//            [_pairingAlert dismissWithClickedButtonIndex:0 animated:NO];
+            [weakSelf.pairingAlert dismissViewControllerAnimated:true completion:^{
+                [weakSelf disconnect];
+            }];
+        });
 
     if (self.delegate && [self.delegate respondsToSelector:@selector(deviceService:pairingFailedWithError:)])
         dispatch_on_main(^{ [self.delegate deviceService:self pairingFailedWithError:error]; });
@@ -365,8 +386,17 @@
 {
     [_pairingTimer invalidate];
 
-    if (_pairingAlert && _pairingAlert.visible)
-        dispatch_on_main(^{ [_pairingAlert dismissWithClickedButtonIndex:1 animated:YES]; });
+    __weak typeof(self) weakSelf = self;
+    if (_pairingAlert && !_pairingAlert.isBeingDismissed)
+        dispatch_on_main(^{
+//            [_pairingAlert dismissWithClickedButtonIndex:1 animated:YES];
+            [weakSelf.pairingAlert dismissViewControllerAnimated:YES completion:^{
+                if(weakSelf.pairingType == DeviceServicePairingTypePinCode || weakSelf.pairingType == DeviceServicePairingTypeMixed) {
+                    NSString *pairingCode = weakSelf.pairingAlert.textFields[0].text;
+                    [weakSelf sendPairingKey:pairingCode success:nil failure:nil];
+                }
+            }];
+        });
 
     if ([self.delegate respondsToSelector:@selector(deviceServicePairingSuccess:)])
         dispatch_on_main(^{ [self.delegate deviceServicePairingSuccess:self]; });
@@ -377,8 +407,14 @@
 
 - (void) socket:(WebOSTVServiceSocketClient *)socket didFailWithError:(NSError *)error
 {
-    if (_pairingAlert && _pairingAlert.visible)
-        dispatch_on_main(^{ [_pairingAlert dismissWithClickedButtonIndex:0 animated:YES]; });
+    __weak typeof(self) weakSelf = self;
+    if (_pairingAlert && !_pairingAlert.isBeingDismissed)
+        dispatch_on_main(^{
+//            [_pairingAlert dismissWithClickedButtonIndex:0 animated:YES];
+            [weakSelf.pairingAlert dismissViewControllerAnimated:YES completion:^{
+                [weakSelf disconnect];
+            }];
+        });
 
     if ([self.delegate respondsToSelector:@selector(deviceService:didFailConnectWithError:)])
         dispatch_on_main(^{ [self.delegate deviceService:self didFailConnectWithError:error]; });
@@ -1526,16 +1562,18 @@
 
     NSURL *commandURL = [NSURL URLWithString:@"ssap://com.webos.service.networkinput/getPointerInputSocket"];
     ServiceCommand *command = [[ServiceCommand alloc] initWithDelegate:self.socket target:commandURL payload:nil];
-
+    __weak typeof(self) weakSelf = self;
     command.callbackComplete = (^(NSDictionary *responseDic)
     {
+        typeof(self) strongSelf = weakSelf;
         NSString *socket = [responseDic objectForKey:@"socketPath"];
-        _mouseSocket = [[WebOSTVServiceMouse alloc] initWithSocket:socket success:success failure:failure];
+        strongSelf->_mouseSocket = [[WebOSTVServiceMouse alloc] initWithSocket:socket success:success failure:failure];
     });
     command.callbackError = ^(NSError *error)
     {
-        _mouseInit = NO;
-        _mouseSocket = nil;
+        typeof(self) strongSelf = weakSelf;
+        strongSelf->_mouseInit = NO;
+        strongSelf->_mouseSocket = nil;
 
         if (failure)
             failure(error);
@@ -1664,17 +1702,18 @@
     if (params) [payload setObject:params forKey:@"urlParams"];
 
     ServiceCommand *command = [ServiceAsyncCommand commandWithDelegate:self.socket target:URL payload:payload];
+    __weak typeof(self) weakSelf = self;
     command.callbackComplete = ^(NSDictionary *responseObject)
     {
         LaunchSession *launchSession;
-
+        typeof(self) strongSelf = weakSelf;
         if (webAppSession)
             launchSession = webAppSession.launchSession;
         else
         {
             launchSession = [LaunchSession launchSessionForAppId:webAppId];
             webAppSession = [[WebOSWebAppSession alloc] initWithLaunchSession:launchSession service:self];
-            _webAppSessions[webAppId] = webAppSession;
+            strongSelf->_webAppSessions[webAppId] = webAppSession;
         }
 
         launchSession.sessionType = LaunchSessionTypeWebApp;
@@ -1850,7 +1889,7 @@
                 failure(error);
         }
     };
-
+    __weak typeof(self) weakSelf = self;
     SuccessBlock connectSuccess = ^(id responseObject) {
         NSString *state = [responseObject objectForKey:@"state"];
 
@@ -1866,11 +1905,11 @@
         }
 
         NSString *fullAppId = responseObject[@"appId"];
-
+        typeof(self) strongSelf = weakSelf;
         if (fullAppId)
         {
             if (webAppSession.launchSession.sessionType == LaunchSessionTypeWebApp)
-                _appToAppIdMappings[fullAppId] = appId;
+                strongSelf->_appToAppIdMappings[fullAppId] = appId;
 
             webAppSession.fullAppId = fullAppId;
         }
@@ -2149,19 +2188,22 @@
     NSURL *URL = [NSURL URLWithString:target];
 
     ServiceCommand *command = [ServiceCommand commandWithDelegate:self.socket target:URL payload:payload];
+    __weak typeof(self) weakSelf = self;
     command.callbackComplete = ^(id responseObject)
     {
-        _keyboardQueueProcessing = NO;
+        typeof(self) strongSelf = weakSelf;
+        strongSelf->_keyboardQueueProcessing = NO;
 
-        if (_keyboardQueue.count > 0)
-            [self sendKeys];
+        if (strongSelf->_keyboardQueue.count > 0)
+            [strongSelf sendKeys];
     };
     command.callbackError = ^(NSError *error)
     {
-        _keyboardQueueProcessing = NO;
+        typeof(self) strongSelf = weakSelf;
+        strongSelf->_keyboardQueueProcessing = NO;
 
-        if (_keyboardQueue.count > 0)
-            [self sendKeys];
+        if (strongSelf->_keyboardQueue.count > 0)
+            [strongSelf sendKeys];
     };
     [command send];
 }
