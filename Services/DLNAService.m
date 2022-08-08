@@ -236,17 +236,16 @@ static const NSInteger kValueNotFound = -1;
     [writer writeStartDocumentWithEncodingAndVersion:@"UTF-8" version:@"1.0"];
 
     static NSString *const kSOAPNamespace = @"http://schemas.xmlsoap.org/soap/envelope/";
+    static NSString *const kEncodingNamespace = @"http://schemas.xmlsoap.org/soap/encoding/";
 
     [writer setPrefix:@"s" namespaceURI:kSOAPNamespace];
-    [writer setPrefix:@"u" namespaceURI:namespace];
 
     [writer writeElement:@"Envelope" withNamespace:kSOAPNamespace andContentsBlock:^(XMLWriter *writer) {
-        [writer writeAttribute:@"s:encodingStyle" value:@"http://schemas.xmlsoap.org/soap/encoding/"];
+        [writer writeAttribute:@"s:encodingStyle" value:kEncodingNamespace];
         [writer writeElement:@"Body" withNamespace:kSOAPNamespace andContentsBlock:^(XMLWriter *writer) {
+            [writer setPrefix:@"u" namespaceURI:namespace];
             [writer writeElement:commandName withNamespace:namespace andContentsBlock:^(XMLWriter *writer) {
-                [writer writeAttribute:@"xmlns:u" value:namespace];
                 [writer writeElement:@"InstanceID" withContents:@"0"];
-
                 if (writerBlock) {
                     writerBlock(writer);
                 }
