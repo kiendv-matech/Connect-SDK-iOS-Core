@@ -27,10 +27,206 @@
 
 #import "NSObject+FeatureNotSupported_Private.h"
 
+typedef struct {
+    MediaControlPlayState state;
+    NSTimeInterval position;
+    NSTimeInterval duration;
+} RokuInfo;
+
+@interface RokuFetcher : NSObject {
+    RokuInfo _rokuInfo;
+    NSTimer *_timer;
+    NSMutableDictionary *_allSubscriptions;
+    __weak id<ServiceCommandDelegate> _serviceCommandDelegate;
+}
+- (void) addSubscription:(ServiceSubscription *)subscription;
+- (void) removeSubscription:(ServiceSubscription *)subscription;
+@end
+
+@implementation RokuFetcher
+- (instancetype) initWithDelegate:(id<ServiceCommandDelegate>) delegate {
+    if (self = [super init])
+    {
+        _allSubscriptions = [NSMutableDictionary new];
+        _serviceCommandDelegate = delegate;
+    }
+
+    return self;
+}
+
+- (void)setInfo:(RokuInfo) info {
+    self->_rokuInfo = info;
+}
+
+- (RokuInfo) getInfo {
+    return self->_rokuInfo;
+}
+
+- (NSString *)serviceSubscriptionKeyForURL:(NSURL *)url {
+    // unfortunately, -[NSURL relativeString] works for URLs created with
+    // -initWithString:relativeToURL: only
+    NSString *resourceSpecifier = url.absoluteURL.resourceSpecifier;
+    // resourceSpecifier starts with two slashes, so we'll look for the third one
+    NSRange relativePathStartRange = [resourceSpecifier rangeOfString:@"/"
+                                                              options:0
+                                                                range:NSMakeRange(2, resourceSpecifier.length - 2)];
+    NSAssert(NSNotFound != relativePathStartRange.location, @"Couldn't find relative path in %@", resourceSpecifier);
+    return [resourceSpecifier substringFromIndex:relativePathStartRange.location];
+}
+
+- (void)addSubscription:(ServiceSubscription *)subscription {
+    @synchronized (_allSubscriptions)
+    {
+        NSString *serviceSubscriptionKey = [self serviceSubscriptionKeyForURL:subscription.target];
+
+        if (!_allSubscriptions[serviceSubscriptionKey])
+            _allSubscriptions[serviceSubscriptionKey] = [NSMutableArray new];
+
+        NSMutableArray *serviceSubscriptions = _allSubscriptions[serviceSubscriptionKey];
+        [serviceSubscriptions addObject:subscription];
+        subscription.isSubscribed = YES;
+    }
+}
+
+- (void)removeSubscription:(ServiceSubscription *)subscription {
+    @synchronized (_allSubscriptions)
+    {
+        
+        NSString *serviceSubscriptionKey = [self serviceSubscriptionKeyForURL:subscription.target];
+
+        NSMutableArray *serviceSubscriptions = _allSubscriptions[serviceSubscriptionKey];
+
+        if (!_allSubscriptions[serviceSubscriptionKey])
+            return;
+
+        subscription.isSubscribed = NO;
+        [serviceSubscriptions removeObject:subscription];
+
+        if (serviceSubscriptions.count == 0)
+            [_allSubscriptions removeObjectForKey:serviceSubscriptionKey];
+        
+   
+    }
+}
+- (BOOL) isRunning {
+    if (!_timer)
+        return NO;
+    else
+        return [_timer isValid];
+}
+
+- (BOOL) hasSubscriptions {
+    @synchronized (_allSubscriptions)
+    {
+        return _allSubscriptions.count > 0;
+    }
+}
+
+- (void) start {
+    [self stop];
+    self->_timer = [NSTimer scheduledTimerWithTimeInterval:0.5 target:self selector:@selector(onFetching) userInfo:nil repeats:true];
+}
+
+- (void) stop {
+    if(!_timer) {
+        return;
+    }
+    [self->_timer invalidate];
+    self->_timer = nil;
+}
+
+- (void)onFetching {
+    [self->_allSubscriptions.allValues enumerateObjectsUsingBlock:^(NSArray<__kindof ServiceSubscription*> *  _Nonnull subscriptions, NSUInteger idx, BOOL * _Nonnull stop) {
+        [subscriptions enumerateObjectsUsingBlock:^(__kindof ServiceSubscription * _Nonnull subscription, NSUInteger idx, BOOL * _Nonnull stop) {
+            [self fetchWithSubscription:subscription];
+        }];
+    }];
+}
+
+- (void) fetchWithSubscription:(ServiceSubscription *)subscription {
+    // https://developer.roku.com/en-gb/docs/developer-program/debugging/external-control-api.md
+    ServiceCommand *command = [ServiceCommand commandWithDelegate: self->_serviceCommandDelegate target:subscription.target payload:nil];
+    command.HTTPMethod = @"GET";
+    __weak RokuFetcher *weakSelf = self;
+    command.callbackComplete = ^(NSString *responseObject)
+    {
+        RokuFetcher *strongSelf = weakSelf;
+        NSError *xmlError;
+        NSDictionary *appListDictionary = [CTXMLReader dictionaryForXMLString:responseObject error:&xmlError];
+        if (appListDictionary) {
+           
+            id appsObject = [appListDictionary valueForKeyPath:@"player"];
+            id position = [appsObject valueForKeyPath:@"position"];
+            id duration = [appsObject valueForKeyPath:@"duration"];
+            NSTimeInterval fetchedDuration = 0;
+            NSTimeInterval fetchedPosition = 0;
+            DLog(@"===> roku %@", responseObject);
+            MediaControlPlayState fetchedPlayState = MediaControlPlayStateUnknown;
+            if ([position isKindOfClass:[NSDictionary class]]) {
+                NSString *timeString = [position valueForKeyPath:@"text"];
+                timeString = [timeString stringByReplacingOccurrencesOfString:@"ms" withString:@""];
+                fetchedPosition = [strongSelf timeForString:timeString];
+            }
+            
+            if ([duration isKindOfClass:[NSDictionary class]]) {
+                NSString *timeString = [duration valueForKeyPath:@"text"];
+                timeString = [timeString stringByReplacingOccurrencesOfString:@"ms" withString:@""];
+                fetchedDuration = [strongSelf timeForString:timeString];
+            }
+            
+            id state = [appsObject valueForKeyPath:@"state"];
+            if ([state isEqualToString:@"startup"])
+                fetchedPlayState = MediaControlPlayStateIdle;
+            else if ([state isEqualToString:@"close"])
+                fetchedPlayState = MediaControlPlayStateFinished;
+            else if ([state isEqualToString:@"pause"])
+                fetchedPlayState = MediaControlPlayStatePaused;
+            else if ([state isEqualToString:@"play"])
+                fetchedPlayState = MediaControlPlayStatePlaying;
+            else if ([state isEqualToString:@"buffer"])
+                fetchedPlayState = MediaControlPlayStateBuffering;
+            else
+                fetchedPlayState = MediaControlPlayStateUnknown;
+            
+            [strongSelf setInfo:(RokuInfo){
+                .state = fetchedPlayState,
+                .position = fetchedPosition,
+                .duration = fetchedDuration,
+            }];
+            
+            [subscription.successCalls enumerateObjectsUsingBlock:^(SuccessBlock success, NSUInteger successIdx, BOOL *successStop) {
+                dispatch_on_main(^{
+                    success([NSValue value:&strongSelf->_rokuInfo withObjCType:@encode(RokuInfo)]);
+                });
+            }];
+        }
+    };
+    command.callbackError = ^(NSError *error) {
+        [subscription.failureCalls enumerateObjectsUsingBlock:^(FailureBlock failure, NSUInteger failureIdx, BOOL *failureStop) {
+            dispatch_on_main(^{
+                failure(error);
+            });
+        }];
+    };
+    [command send];
+}
+
+- (NSTimeInterval) timeForString:(NSString *)timeString
+{
+    if (!timeString || [timeString isEqualToString:@""])
+        return 0;
+    NSInteger time = [timeString integerValue];
+    NSTimeInterval timeInterval = time/1000;
+
+    return timeInterval;
+}
+@end
+
 @interface RokuService () <ServiceCommandDelegate, DeviceServiceReachabilityDelegate>
 {
     DIALService *_dialService;
     DeviceServiceReachability *_serviceReachability;
+    RokuFetcher *_fetcher;
 }
 @end
 
@@ -180,6 +376,14 @@ static NSMutableArray *registeredApps = nil;
     return _dialService;
 }
 
+- (RokuFetcher*) fetcher {
+    if (!_fetcher) {
+        self->_fetcher = [[RokuFetcher alloc] initWithDelegate: self.serviceCommandDelegate];
+    }
+    
+    return _fetcher;
+}
+
 #pragma mark - Getters & Setters
 
 /// Returns the set delegate property value or self.
@@ -211,9 +415,11 @@ static NSMutableArray *registeredApps = nil;
         [request setHTTPMethod:@"GET"];
         [request addValue:@"0" forHTTPHeaderField:@"Content-Length"];
     }
-
-    [NSURLConnection sendAsynchronousRequest:request queue:[NSOperationQueue mainQueue] completionHandler:^(NSURLResponse *response, NSData *data, NSError *connectionError)
-    {
+    
+    NSURLSessionConfiguration *sessionConfiguration = [NSURLSessionConfiguration defaultSessionConfiguration];
+    NSURLSession *urlSession = [NSURLSession sessionWithConfiguration:sessionConfiguration delegate:nil delegateQueue:[NSOperationQueue mainQueue]];
+    
+    [[urlSession dataTaskWithRequest:request completionHandler:^(NSData * _Nullable data, NSURLResponse * _Nullable response, NSError * _Nullable connectionError) {
         NSHTTPURLResponse *httpResponse = (NSHTTPURLResponse *)response;
         
         if (connectionError)
@@ -237,12 +443,25 @@ static NSMutableArray *registeredApps = nil;
             if (command.callbackComplete)
                 dispatch_on_main(^{ command.callbackComplete(dataString); });
         }
-    }];
-
+    }] resume];
     // TODO: need to implement callIds in here
     return 0;
 }
 
+-(int)sendSubscription:(ServiceSubscription *)subscription type:(ServiceSubscriptionType)type payload:(id)payload toURL:(NSURL *)URL withId:(int)callId {
+    if (type == ServiceSubscriptionTypeSubscribe) {
+        [self.fetcher addSubscription:subscription];
+        if (!self.fetcher.isRunning) {
+            [self.fetcher start];
+        }
+    } else {
+        [self.fetcher removeSubscription:subscription];
+        if (!self.fetcher.hasSubscriptions) {
+            [self.fetcher stop];
+        }
+    }
+    return -1;
+}
 #pragma mark - Launcher
 
 - (id <Launcher>)launcher
@@ -679,22 +898,39 @@ static NSMutableArray *registeredApps = nil;
 
 - (void)getPlayStateWithSuccess:(MediaPlayStateSuccessBlock)success failure:(FailureBlock)failure
 {
-    [self sendNotSupportedFailure:failure];
+    RokuInfo _info = [self.fetcher getInfo];
+    success(_info.state);
 }
 
 - (ServiceSubscription *)subscribePlayStateWithSuccess:(MediaPlayStateSuccessBlock)success failure:(FailureBlock)failure
 {
-    return [self sendNotSupportedFailure:failure];
+    NSURL *targetURL = [self.serviceDescription.commandURL URLByAppendingPathComponent:@"query"];
+    targetURL = [targetURL URLByAppendingPathComponent:@"media-player"];
+    
+    SuccessBlock successBlock = ^(NSValue *rokuInfoValue) {
+        RokuInfo _rokuInfo;
+        [rokuInfoValue getValue:&_rokuInfo];
+        if (success)
+            success(_rokuInfo.state);
+    };
+    
+    ServiceSubscription *subscription = [ServiceSubscription subscriptionWithDelegate:self target:targetURL payload:nil callId:-1];
+    [subscription addSuccess:successBlock];
+    [subscription addFailure:failure];
+    [subscription subscribe];
+    return subscription;
 }
 
 - (void)getDurationWithSuccess:(MediaPositionSuccessBlock)success
                        failure:(FailureBlock)failure {
-    [self sendNotSupportedFailure:failure];
+    RokuInfo _info = [self.fetcher getInfo];
+    success(_info.duration);
 }
 
 - (void)getPositionWithSuccess:(MediaPositionSuccessBlock)success failure:(FailureBlock)failure
 {
-    [self sendNotSupportedFailure:failure];
+    RokuInfo _info = [self.fetcher getInfo];
+    success(_info.position);
 }
 
 - (void)getMediaMetaDataWithSuccess:(SuccessBlock)success

@@ -311,8 +311,9 @@ static const NSInteger kValueNotFound = -1;
 
     DLog(@"[OUT] : %@ \n %@", [request allHTTPHeaderFields], xml);
 
-    [NSURLConnection sendAsynchronousRequest:request queue:[NSOperationQueue mainQueue] completionHandler:^(NSURLResponse *response, NSData *data, NSError *connectionError)
-    {
+    NSURLSessionConfiguration *sessionConfiguration = [NSURLSessionConfiguration defaultSessionConfiguration];
+    NSURLSession *urlSession = [NSURLSession sessionWithConfiguration:sessionConfiguration delegate:nil delegateQueue:[NSOperationQueue mainQueue]];
+    [[urlSession dataTaskWithRequest:request completionHandler:^(NSData * _Nullable data, NSURLResponse * _Nullable response, NSError * _Nullable connectionError) {
         NSError *xmlError;
         NSDictionary *dataXML = [CTXMLReader dictionaryForXMLData:data error:&xmlError];
 
@@ -353,8 +354,7 @@ static const NSInteger kValueNotFound = -1;
                     dispatch_on_main(^{ command.callbackComplete(dataXML); });
             }
         }
-    }];
-
+    }] resume];
     // TODO: need to implement callIds in here
     return 0;
 }
@@ -389,11 +389,11 @@ static const NSInteger kValueNotFound = -1;
 - (void) subscribeServices
 {
     _httpServerSessionIds = [NSMutableDictionary new];
-
+    __weak typeof(self) weakSelf = self;
     [_serviceDescription.serviceList enumerateObjectsUsingBlock:^(id service, NSUInteger idx, BOOL *stop) {
         NSString *serviceId = service[@"serviceId"][@"text"];
         NSString *eventPath = service[@"eventSubURL"][@"text"];
-        NSURL *eventSubURL = [self serviceURLForPath:eventPath];
+        NSURL *eventSubURL = [weakSelf serviceURLForPath:eventPath];
         if ([eventPath hasPrefix:@"/"])
             eventPath = [eventPath substringFromIndex:1];
 
@@ -411,7 +411,11 @@ static const NSInteger kValueNotFound = -1;
         [request setValue:@"0" forHTTPHeaderField:@"Content-Length"];
         [request setValue:@"iOS UPnP/1.1 ConnectSDK" forHTTPHeaderField:@"USER-AGENT"];
 
-        [NSURLConnection sendAsynchronousRequest:request queue:[NSOperationQueue mainQueue] completionHandler:^(NSURLResponse *_response, NSData *data, NSError *connectionError) {
+        NSURLSessionConfiguration *sessionConfiguration = [NSURLSessionConfiguration defaultSessionConfiguration];
+        NSURLSession *urlSession = [NSURLSession sessionWithConfiguration:sessionConfiguration delegate:nil delegateQueue:[NSOperationQueue mainQueue]];
+        
+        [[urlSession dataTaskWithRequest:request completionHandler:^(NSData * _Nullable data, NSURLResponse * _Nullable _response, NSError * _Nullable connectionError) {
+            typeof(self) strongSelf = weakSelf;
             NSHTTPURLResponse *response = (NSHTTPURLResponse *)_response;
 
             if (connectionError || !response)
@@ -422,11 +426,12 @@ static const NSInteger kValueNotFound = -1;
                 NSString *sessionId = response.allHeaderFields[@"SID"];
 
                 if (sessionId)
-                    _httpServerSessionIds[serviceId] = sessionId;
+                    strongSelf->_httpServerSessionIds[serviceId] = sessionId;
 
-                [self performSelector:@selector(resubscribeSubscriptions) withObject:nil afterDelay:kSubscriptionTimeoutSeconds / 2];
+                [strongSelf performSelector:@selector(resubscribeSubscriptions) withObject:nil afterDelay:kSubscriptionTimeoutSeconds / 2];
             }
-        }];
+            
+        }] resume];
     }];
 }
 
@@ -451,7 +456,11 @@ static const NSInteger kValueNotFound = -1;
         [request setValue:timeoutValue forHTTPHeaderField:@"TIMEOUT"];
         [request setValue:sessionId forHTTPHeaderField:@"SID"];
 
-        [NSURLConnection sendAsynchronousRequest:request queue:[NSOperationQueue mainQueue] completionHandler:^(NSURLResponse *_response, NSData *data, NSError *connectionError) {
+        NSURLSessionConfiguration *sessionConfiguration = [NSURLSessionConfiguration defaultSessionConfiguration];
+        NSURLSession *urlSession = [NSURLSession sessionWithConfiguration:sessionConfiguration delegate:nil delegateQueue:[NSOperationQueue mainQueue]];
+        
+        [[urlSession dataTaskWithRequest:request completionHandler:^(NSData * _Nullable data, NSURLResponse * _Nullable _response, NSError * _Nullable connectionError) {
+                            
             NSHTTPURLResponse *response = (NSHTTPURLResponse *)_response;
 
             if (connectionError || !response)
@@ -461,7 +470,8 @@ static const NSInteger kValueNotFound = -1;
             {
                 [self performSelector:@selector(resubscribeSubscriptions) withObject:nil afterDelay:kSubscriptionTimeoutSeconds / 2];
             }
-        }];
+            
+        }] resume];
     }];
 }
 
@@ -483,7 +493,11 @@ static const NSInteger kValueNotFound = -1;
         [request setHTTPMethod:@"UNSUBSCRIBE"];
         [request setValue:sessionId forHTTPHeaderField:@"SID"];
 
-        [NSURLConnection sendAsynchronousRequest:request queue:[NSOperationQueue mainQueue] completionHandler:^(NSURLResponse *_response, NSData *data, NSError *connectionError) {
+        NSURLSessionConfiguration *sessionConfiguration = [NSURLSessionConfiguration defaultSessionConfiguration];
+        NSURLSession *urlSession = [NSURLSession sessionWithConfiguration:sessionConfiguration delegate:nil delegateQueue:[NSOperationQueue mainQueue]];
+        __weak typeof(self) weakSelf = self;
+        [[urlSession dataTaskWithRequest:request completionHandler:^(NSData * _Nullable data, NSURLResponse * _Nullable _response, NSError * _Nullable connectionError) {
+            typeof(self) strongSelf = weakSelf;
             NSHTTPURLResponse *response = (NSHTTPURLResponse *)_response;
 
             if (connectionError || !response)
@@ -491,9 +505,10 @@ static const NSInteger kValueNotFound = -1;
 
             if (response.statusCode == 200)
             {
-                [_httpServerSessionIds removeObjectForKey:serviceId];
+                [strongSelf->_httpServerSessionIds removeObjectForKey:serviceId];
             }
-        }];
+            
+        }] resume];
     }];
 }
 
@@ -764,13 +779,18 @@ static const NSInteger kValueNotFound = -1;
     if (timeComponents.count != 3) {
         return 0;
     }
-    timeString = [NSString stringWithFormat:@"%@:%@:%ld", timeComponents[0], timeComponents[1], (long)round([timeComponents[2] doubleValue])];
-    
+    NSString *timeFormatterString = @"HH:m:ss";
+    NSString *midnightTimeString = @"00:00:00";
+    if ([timeString containsString:@"."]) {
+        timeFormatterString = @"HH:m:ss.SSS";
+        midnightTimeString = @"00:00:00.000";
+    }
+   
     NSDateFormatter *formatter = [[NSDateFormatter alloc] init];
-    [formatter setDateFormat:@"HH:m:ss"];
+    [formatter setDateFormat:timeFormatterString];
 
     NSDate *time = [formatter dateFromString:timeString];
-    NSDate *midnight = [formatter dateFromString:@"00:00:00"];
+    NSDate *midnight = [formatter dateFromString:midnightTimeString];
 
     NSTimeInterval timeInterval = [time timeIntervalSinceDate:midnight];
 

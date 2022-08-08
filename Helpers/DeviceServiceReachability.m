@@ -69,32 +69,34 @@
     NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:self.targetURL];
     [request setTimeoutInterval:10];
     [request setCachePolicy:NSURLRequestReloadIgnoringLocalCacheData];
-
-    [NSURLConnection sendAsynchronousRequest:request
-                                       queue:_reachabilityQueue
-                           completionHandler:^(NSURLResponse *response, NSData *data, NSError *connectionError)
-    {
-        if (!_running)
+    
+    NSURLSessionConfiguration *sessionConfiguration = [NSURLSessionConfiguration defaultSessionConfiguration];
+    NSURLSession *urlSession = [NSURLSession sessionWithConfiguration:sessionConfiguration delegate:nil delegateQueue:_reachabilityQueue];
+    __weak typeof(self) weakSelf = self;
+    [[urlSession dataTaskWithRequest:request completionHandler:^(NSData * _Nullable data, NSURLResponse * _Nullable response, NSError * _Nullable connectionError) {
+        typeof(self) strongSelf = weakSelf;
+        
+        if (!strongSelf->_running)
             return;
 
         if (connectionError) {
-            DLog(@"Connection error to %@: %@", self.targetURL, connectionError);
+            DLog(@"Connection error to %@: %@", strongSelf.targetURL, connectionError);
         }
 
         const BOOL noDataIsAvailable = !data && connectionError && !response;
         if (noDataIsAvailable)
         {
-            [self stop];
+            [strongSelf stop];
 
-            if (self.delegate)
+            if (strongSelf.delegate)
             {
                 dispatch_async(dispatch_get_main_queue(), ^
                 {
-                    [self.delegate didLoseReachability:self];
+                    [strongSelf.delegate didLoseReachability:strongSelf];
                 });
             }
         }
-    }];
+    }] resume];
 }
 
 @end

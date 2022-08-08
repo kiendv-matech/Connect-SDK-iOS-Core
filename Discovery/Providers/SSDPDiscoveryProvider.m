@@ -332,7 +332,19 @@ static double searchAttemptsBeforeKill = 6.0;
                             //Check that this is what is wanted
                             foundService.UUID = theUUID;
                             foundService.type =  theType;
-                            foundService.address = anAddress;
+                            // Hieu trinh start fix LOCATION could be asterisk(*), so this will crash.
+//                            foundService.address = anAddress;
+                            
+                            NSURL* url = [NSURL URLWithString:location];
+
+                             if (url && url.scheme && url.host)
+                             {
+                                 foundService.address = url.host;
+                             } else
+                             {
+                                 foundService.address = anAddress;
+                             }
+                            // Hieu trinh end fix
                             foundService.port = 3001;
                             isNew = YES;
                         }
@@ -363,21 +375,26 @@ static double searchAttemptsBeforeKill = 6.0;
 
 - (void) getLocationData:(NSString*)url forKey:(NSString*)UUID andType:(NSString *)theType
 {
+    
+    NSURLSessionConfiguration *sessionConfiguration = [NSURLSessionConfiguration defaultSessionConfiguration];
+    NSURLSession *urlSession = [NSURLSession sessionWithConfiguration:sessionConfiguration delegate:nil delegateQueue:_locationLoadQueue];
     NSURL *req = [NSURL URLWithString:url];
     NSURLRequest *request = [NSURLRequest requestWithURL:req];
-    [NSURLConnection sendAsynchronousRequest:request queue:_locationLoadQueue completionHandler:^(NSURLResponse *response, NSData *data, NSError *connectionError) {
+    __weak typeof(self) weakSelf = self;
+    [[urlSession dataTaskWithRequest:request completionHandler:^(NSData * _Nullable data, NSURLResponse * _Nullable response, NSError * _Nullable connectionError) {
+        typeof(self) strongSelf = weakSelf;
         NSError *xmlError;
         NSDictionary *xml = [CTXMLReader dictionaryForXMLData:data error:&xmlError];
 
         if (!xmlError)
         {
-            NSDictionary *device = [self device:[xml valueForKeyPath:@"root.device"]
+            NSDictionary *device = [strongSelf device:[xml valueForKeyPath:@"root.device"]
                    containingServicesWithFilter:theType];
 
             if (device)
             {
                 ServiceDescription *service;
-                @synchronized(_helloDevices) { service = [_helloDevices objectForKey:UUID]; }
+                @synchronized(strongSelf->_helloDevices) { service = [strongSelf->_helloDevices objectForKey:UUID]; }
 
                 if (service)
                 {
@@ -388,19 +405,19 @@ static double searchAttemptsBeforeKill = 6.0;
                     service.modelDescription = [[device objectForKey:@"modelDescription"] objectForKey:@"text"];
                     service.manufacturer = [[device objectForKey:@"manufacturer"] objectForKey:@"text"];
                     service.locationXML = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
-                    service.serviceList = [self serviceListForDevice:device];
+                    service.serviceList = [strongSelf serviceListForDevice:device];
                     service.commandURL = response.URL;
                     service.locationResponseHeaders = [((NSHTTPURLResponse *)response) allHeaderFields];
 
-                    @synchronized(_foundServices) { [_foundServices setObject:service forKey:UUID]; }
+                    @synchronized(strongSelf->_foundServices) { [strongSelf->_foundServices setObject:service forKey:UUID]; }
 
                     [self notifyDelegateOfNewService:service];
                 }
             }
         }
         
-        @synchronized(_helloDevices) { [_helloDevices removeObjectForKey:UUID]; }
-    }];
+        @synchronized(strongSelf->_helloDevices) { [strongSelf->_helloDevices removeObjectForKey:UUID]; }
+    }] resume];
 }
 
 - (void) notifyDelegateOfNewService:(ServiceDescription *)service

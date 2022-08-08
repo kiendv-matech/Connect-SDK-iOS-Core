@@ -54,20 +54,19 @@
 }
 @end
 
-@interface AirPlayServiceMirrored () <ServiceCommandDelegate, UIWebViewDelegate, UIAlertViewDelegate>
+@interface AirPlayServiceMirrored () <ServiceCommandDelegate, WKNavigationDelegate>
 
 @property (nonatomic, copy) SuccessBlock launchSuccessBlock;
 @property (nonatomic, copy) FailureBlock launchFailureBlock;
 
 @property (nonatomic) AirPlayWebAppSession *activeWebAppSession;
 @property (nonatomic) ServiceSubscription *playStateSubscription;
-
+@property (strong, nonatomic) UIAlertController *connectingAlertView;
 @end
 
 @implementation AirPlayServiceMirrored
 {
     NSTimer *_connectTimer;
-    UIAlertView *_connectingAlertView;
 }
 
 - (instancetype) initWithAirPlayService:(AirPlayService *)service
@@ -107,12 +106,23 @@
         NSString *ok = [[NSBundle mainBundle] localizedStringForKey:@"Connect_SDK_AirPlay_Mirror_OK" value:@"OK" table:@"ConnectSDK"];
         NSString *cancel = [[NSBundle mainBundle] localizedStringForKey:@"Connect_SDK_AirPlay_Mirror_Cancel" value:@"Cancel" table:@"ConnectSDK"];
 
-        _connectingAlertView = [[UIAlertView alloc] initWithTitle:title message:message delegate:self cancelButtonTitle:cancel otherButtonTitles:ok, nil];
+        _connectingAlertView = [UIAlertController alertControllerWithTitle:title message:message preferredStyle:UIAlertControllerStyleAlert];
+        __weak typeof(self) weakSelf = self;
+        UIAlertAction *cancelAction = [UIAlertAction actionWithTitle:cancel style:UIAlertActionStyleCancel handler:^(UIAlertAction * _Nonnull action) {
+            if (weakSelf.connecting)
+                [weakSelf disconnect];
+            weakSelf.connectingAlertView = nil;
+        }];
+        [_connectingAlertView addAction:cancelAction];
+        UIAlertAction *okAction = [UIAlertAction actionWithTitle:ok style:UIAlertActionStyleDefault handler:^(UIAlertAction * _Nonnull action) {
+            
+        }];
+        [_connectingAlertView addAction:okAction];
 
         [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(hScreenConnected:) name:UIScreenDidConnectNotification object:nil];
 
         if (self.service && self.service.delegate && [self.service.delegate respondsToSelector:@selector(deviceService:pairingRequiredOfType:withData:)])
-            dispatch_on_main(^{ [self.service.delegate deviceService:self.service pairingRequiredOfType:DeviceServicePairingTypeAirPlayMirroring withData:_connectingAlertView]; });
+            dispatch_on_main(^{ [weakSelf.service.delegate deviceService:weakSelf.service pairingRequiredOfType:DeviceServicePairingTypeAirPlayMirroring withData:weakSelf.connectingAlertView]; });
     }
 }
 
@@ -139,20 +149,19 @@
         _connectTimer = nil;
     }
 
+    __weak typeof(self) weakSelf = self;
     if (_connectingAlertView)
-        dispatch_on_main(^{ [_connectingAlertView dismissWithClickedButtonIndex:0 animated:NO]; });
+        dispatch_on_main(^{
+//            [_connectingAlertView dismissWithClickedButtonIndex:0 animated:NO];
+            [weakSelf.connectingAlertView dismissViewControllerAnimated:YES completion:^{
+                if (weakSelf.connecting)
+                    [weakSelf disconnect];
+                weakSelf.connectingAlertView = nil;
+            }];
+        });
 
     if (self.service && self.service.delegate && [self.service.delegate respondsToSelector:@selector(deviceService:disconnectedWithError:)])
         [self.service.delegate deviceService:self.service disconnectedWithError:nil];
-}
-
-- (void) alertView:(UIAlertView *)alertView didDismissWithButtonIndex:(NSInteger)buttonIndex
-{
-    _connectingAlertView.delegate = nil;
-    _connectingAlertView = nil;
-
-    if (buttonIndex == 0 && _connecting)
-        [self disconnect];
 }
 
 - (int) sendSubscription:(ServiceSubscription *)subscription type:(ServiceSubscriptionType)type payload:(id)payload toURL:(NSURL *)URL withId:(int)callId
@@ -189,8 +198,12 @@
         _connecting = NO;
         _connected = YES;
 
+        __weak typeof(self) weakSelf = self;
         if (_connectingAlertView)
-            dispatch_on_main(^{ [_connectingAlertView dismissWithClickedButtonIndex:1 animated:NO]; });
+            dispatch_on_main(^{
+//                [_connectingAlertView dismissWithClickedButtonIndex:1 animated:NO];
+                [weakSelf.connectingAlertView dismissViewControllerAnimated:YES completion:nil];
+            });
 
         [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(hScreenDisconnected:) name:UIScreenDidDisconnectNotification object:nil];
 
@@ -289,7 +302,7 @@
             return;
         } else
         {
-            NSString *webAppHost = _webAppWebView.request.URL.host;
+            NSString *webAppHost = _webAppWebView.URL.host;
 
             if ([webAppId rangeOfString:webAppHost].location != NSNotFound)
             {
@@ -316,16 +329,21 @@
 
     DLog(@"Created a web view with bounds %@", NSStringFromCGRect(self.secondWindow.bounds));
 
-    _webAppWebView = [[UIWebView alloc] initWithFrame:self.secondWindow.bounds];
-    _webAppWebView.allowsInlineMediaPlayback = YES;
-    _webAppWebView.mediaPlaybackAllowsAirPlay = NO;
-    _webAppWebView.mediaPlaybackRequiresUserAction = NO;
+    WKProcessPool *commonProcessPool = [[WKProcessPool alloc] init];
+    WKWebViewConfiguration *webViewConfig = [[WKWebViewConfiguration alloc] init];
+    webViewConfig.processPool = commonProcessPool;
+    webViewConfig.allowsInlineMediaPlayback = true;
+    webViewConfig.mediaPlaybackAllowsAirPlay = false;
+    webViewConfig.mediaPlaybackRequiresUserAction = false;
+
+    _webAppWebView = [[WKWebView alloc] initWithFrame:self.secondWindow.bounds configuration:webViewConfig];
 
     AirPlayServiceViewController *secondScreenViewController = [[AirPlayServiceViewController alloc] init];
     secondScreenViewController.view = _webAppWebView;
-    _webAppWebView.delegate = self;
+    _webAppWebView.navigationDelegate = self;
     self.secondWindow.rootViewController = secondScreenViewController;
     self.secondWindow.hidden = NO;
+
 
     LaunchSession *launchSession = [LaunchSession launchSessionForAppId:webAppId];
     launchSession.sessionType = LaunchSessionTypeWebApp;
@@ -375,7 +393,7 @@
 {
     if (self.webAppWebView && self.connected)
     {
-        NSString *webAppHost = self.webAppWebView.request.URL.host;
+        NSString *webAppHost = self.webAppWebView.URL.host;
 
         if ([webAppLaunchSession.appId rangeOfString:webAppHost].location != NSNotFound)
         {
@@ -429,7 +447,7 @@
         _secondWindow.screen = nil;
         _secondWindow = nil;
 
-        _webAppWebView.delegate = nil;
+        _webAppWebView.navigationDelegate = nil;
         _webAppWebView = nil;
     }
 
@@ -457,10 +475,9 @@
     return [self sendNotSupportedFailure:failure];
 }
 
-#pragma mark - UIWebViewDelegate
+#pragma mark - WKWebViewDelegate
 
-- (void)webView:(UIWebView *)webView didFailLoadWithError:(NSError *)error
-{
+- (void)webView:(WKWebView *)webView didFailNavigation:(WKNavigation *)navigation withError:(NSError *)error {
     DLog(@"%@", error.localizedDescription);
 
     if (self.launchFailureBlock)
@@ -470,8 +487,8 @@
     self.launchFailureBlock = nil;
 }
 
-- (BOOL)webView:(UIWebView *)webView shouldStartLoadWithRequest:(NSURLRequest *)request navigationType:(UIWebViewNavigationType)navigationType
-{
+- (void)webView:(WKWebView *)webView decidePolicyForNavigationAction:(WKNavigationAction *)navigationAction decisionHandler:(void (^)(WKNavigationActionPolicy))decisionHandler {
+    NSURLRequest *request = navigationAction.request;
     if ([request.URL.absoluteString hasPrefix:@"connectsdk://"])
     {
         NSString *jsonString = [[request.URL.absoluteString componentsSeparatedByString:@"connectsdk://"] lastObject];
@@ -489,7 +506,7 @@
 
         if (self.activeWebAppSession)
         {
-            NSString *webAppHost = self.webAppWebView.request.URL.host;
+            NSString *webAppHost = self.webAppWebView.URL.host;
 
             // check if current running web app matches the current web app session
             if ([self.activeWebAppSession.launchSession.appId rangeOfString:webAppHost].location != NSNotFound)
@@ -502,16 +519,15 @@
                 [self.activeWebAppSession disconnectFromWebApp];
         }
 
-        return NO;
+        decisionHandler(WKNavigationActionPolicyCancel);
     } else
     {
-        return YES;
+        decisionHandler(WKNavigationActionPolicyAllow);
     }
 }
 
-- (void)webViewDidFinishLoad:(UIWebView *)webView
-{
-    DLog(@"%@", webView.request.URL.absoluteString);
+- (void)webView:(WKWebView *)webView didFinishNavigation:(WKNavigation *)navigation {
+    DLog(@"%@", webView.URL.absoluteString);
 
     if (self.launchSuccessBlock)
         self.launchSuccessBlock(nil);
@@ -520,9 +536,8 @@
     self.launchFailureBlock = nil;
 }
 
-- (void)webViewDidStartLoad:(UIWebView *)webView
-{
-    DLog(@"%@", webView.request.URL.absoluteString);
+- (void)webView:(WKWebView *)webView didStartProvisionalNavigation:(WKNavigation *)navigation {
+    DLog(@"%@", webView.URL.absoluteString);
 }
 
 @end
