@@ -332,7 +332,19 @@ static double searchAttemptsBeforeKill = 6.0;
                             //Check that this is what is wanted
                             foundService.UUID = theUUID;
                             foundService.type =  theType;
-                            foundService.address = anAddress;
+                            // Hieu trinh start fix LOCATION could be asterisk(*), so this will crash.
+//                            foundService.address = anAddress;
+                            
+                            NSURL* url = [NSURL URLWithString:location];
+
+                             if (url && url.scheme && url.host)
+                             {
+                                 foundService.address = url.host;
+                             } else
+                             {
+                                 foundService.address = anAddress;
+                             }
+                            // Hieu trinh end fix
                             foundService.port = 3001;
                             isNew = YES;
                         }

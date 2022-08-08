@@ -50,7 +50,9 @@
 {
 	if (nil == _workQueue)
 	{
-		_workQueue = dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0);
+        @synchronized (self) {
+            _workQueue = dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0);
+        }
 	}
 	return _workQueue;
 }
@@ -59,7 +61,9 @@
 {
 	if (nil == _delegateQueue)
 	{
-		_delegateQueue = dispatch_get_main_queue();
+        @synchronized (self) {
+            _delegateQueue = dispatch_get_main_queue();
+        }
 	}
 	return _delegateQueue;
 }
@@ -69,11 +73,13 @@
 - (void)raiseError
 {
 	_error = [ConnectError generateErrorWithCode:ConnectStatusCodeSocketError andDetails:@"Detection socket disconnected"];
+    __weak __typeof__ (self) weakSelf = self;
 	dispatch_async(self.delegateQueue,
 		^{
-			if ([self.delegate respondsToSelector:@selector(socket:didEncounterError:)])
+        __typeof__(self) strongSelf = weakSelf;
+			if ([strongSelf.delegate respondsToSelector:@selector(socket:didEncounterError:)])
 			{
-				[self.delegate socket:self didEncounterError:_error];
+				[strongSelf.delegate socket:strongSelf didEncounterError:strongSelf->_error];
 			}
 		});
 }
@@ -135,30 +141,51 @@
 
 	_dispatchSource = dispatch_source_create(DISPATCH_SOURCE_TYPE_READ, theSocketDescriptor, 0, self.workQueue);
 	_socket = theSocketDescriptor;
-	dispatch_source_set_event_handler(_dispatchSource,
-		^{
-			struct sockaddr_in theIncomingAddr;
-			memset(&theIncomingAddr, 0, sizeof(theIncomingAddr));
-			size_t theDataSize = dispatch_source_get_data(_dispatchSource);
-			char theBuffer[theDataSize + 1];
-			int theReceiveBytesCount = 0;
-			socklen_t theAddressSize = sizeof(theIncomingAddr);
-			while (theReceiveBytesCount < theDataSize)
-			{
-				theReceiveBytesCount += recvfrom(theSocketDescriptor, theBuffer,
-					sizeof(theBuffer), 0, (struct sockaddr*)&theIncomingAddr, &theAddressSize);
-			}
-			char theCAddrBuffer[SOCK_MAXADDRLEN];
-			memset(theCAddrBuffer, 0, SOCK_MAXADDRLEN);
-			inet_ntop(theIncomingAddr.sin_family, &theIncomingAddr.sin_addr, theCAddrBuffer, SOCK_MAXADDRLEN);
+    
+    __weak __typeof__(self) weakSelf = self;
+    dispatch_source_set_event_handler(self->_dispatchSource,
+        ^{
+            __typeof__(self) strongSelf = weakSelf;
+            if (strongSelf == nil) return;
+            if (!strongSelf->_socket || !strongSelf->_dispatchSource)
+            {
+                [strongSelf raiseError];
+                return;
+            }
 
-			NSString *thePath = [[NSString alloc] initWithBytes:theCAddrBuffer
-				length:strlen(theCAddrBuffer) encoding:NSUTF8StringEncoding];
-			NSData * theReceivedData = [NSData dataWithBytes:theBuffer length:theDataSize];
-            
-			[self didReceiveData:theReceivedData fromAddress:thePath];
-			
-		});
+            struct sockaddr_in theIncomingAddr;
+            memset(&theIncomingAddr, 0, sizeof(theIncomingAddr));
+            size_t theDataSize = dispatch_source_get_data(strongSelf->_dispatchSource);
+            size_t maxDataSize = 65535;
+            char theBuffer[maxDataSize];
+            int theLastReceiveBytes = 0;
+            int theReceiveBytesSum = 0;
+            socklen_t theAddressSize = sizeof(theIncomingAddr);
+            while (theReceiveBytesSum < theDataSize)
+            {
+                theLastReceiveBytes = (int)recvfrom(theSocketDescriptor, theBuffer,
+                    maxDataSize, 0, (struct sockaddr*)&theIncomingAddr, &theAddressSize);
+                theReceiveBytesSum += theLastReceiveBytes;
+            }
+            if (theLastReceiveBytes > 0)
+            {
+                char theCAddrBuffer[SOCK_MAXADDRLEN];
+                memset(theCAddrBuffer, 0, SOCK_MAXADDRLEN);
+                inet_ntop(theIncomingAddr.sin_family, &theIncomingAddr.sin_addr, theCAddrBuffer, SOCK_MAXADDRLEN);
+
+                NSString *thePath = [[NSString alloc] initWithBytes:theCAddrBuffer
+                    length:strlen(theCAddrBuffer) encoding:NSUTF8StringEncoding];
+                NSData * theReceivedData = [NSData dataWithBytes:theBuffer length:theLastReceiveBytes];
+
+                [strongSelf didReceiveData:theReceivedData fromAddress:thePath];
+            }
+        });
+
+    dispatch_source_set_cancel_handler(self->_dispatchSource,
+        ^{
+            close(self->_socket);
+        });
+
 	
 	dispatch_resume(_dispatchSource);
 }
