@@ -236,8 +236,13 @@ static const NSInteger kValueNotFound = -1;
     [writer writeStartDocumentWithEncodingAndVersion:@"UTF-8" version:@"1.0"];
 
     static NSString *const kSOAPNamespace = @"http://schemas.xmlsoap.org/soap/envelope/";
-    static NSString *const kEncodingNamespace =  @"http://schemas.xmlsoap.org/soap/encoding/";
-    
+//<<<<<<< HEAD
+//    static NSString *const kEncodingNamespace =  @"http://schemas.xmlsoap.org/soap/encoding/";
+//
+//=======
+    static NSString *const kEncodingNamespace = @"http://schemas.xmlsoap.org/soap/encoding/";
+
+//>>>>>>> origin/feature/manhpd_fv
     [writer setPrefix:@"s" namespaceURI:kSOAPNamespace];
 
     [writer writeElement:@"Envelope" withNamespace:kSOAPNamespace andContentsBlock:^(XMLWriter *writer) {
@@ -246,7 +251,6 @@ static const NSInteger kValueNotFound = -1;
             [writer setPrefix:@"u" namespaceURI:namespace];
             [writer writeElement:commandName withNamespace:namespace andContentsBlock:^(XMLWriter *writer) {
                 [writer writeElement:@"InstanceID" withContents:@"0"];
-
                 if (writerBlock) {
                     writerBlock(writer);
                 }
