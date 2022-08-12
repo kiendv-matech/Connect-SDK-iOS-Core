@@ -246,6 +246,9 @@
     dispatch_async(_sortQueue, ^{
         NSArray *devices;
         typeof(self) strongSelf = weakSelf;
+        if (strongSelf == nil) {
+            return;
+        }
         @synchronized (strongSelf->_devices) { devices = [strongSelf->_devices allValues]; }
 
         @synchronized (strongSelf->_generatedDeviceList)
@@ -363,6 +366,9 @@
     {
         __weak typeof(self) weakSelf = self;
         dispatch_async(dispatch_get_main_queue(), ^{
+            if (weakSelf == nil) {
+                return;
+            }
             [weakSelf.delegate devicePicker:weakSelf didSelectDevice:device];
         });
     }
@@ -458,6 +464,9 @@ static NSString *cellIdentifier = @"connectPickerCell";
         __weak typeof(self) weakSelf = self;
         dispatch_async(dispatch_get_main_queue(), ^{
             typeof(self) strongSelf = weakSelf;
+            if (strongSelf == nil) {
+                return;
+            }
             if (strongSelf->_tableViewController)
                 [strongSelf->_tableViewController.tableView reloadData];
         });
@@ -474,6 +483,9 @@ static NSString *cellIdentifier = @"connectPickerCell";
         __weak typeof(self) weakSelf = self;
         dispatch_async(dispatch_get_main_queue(), ^{
             typeof(self) strongSelf = weakSelf;
+            if (strongSelf == nil) {
+                return;
+            }
             if (strongSelf->_tableViewController)
                 [strongSelf->_tableViewController.tableView reloadData];
         });
@@ -487,6 +499,9 @@ static NSString *cellIdentifier = @"connectPickerCell";
         __weak typeof(self) weakSelf = self;
         dispatch_async(dispatch_get_main_queue(), ^{
             typeof(self) strongSelf = weakSelf;
+            if (strongSelf == nil) {
+                return;
+            }
             if (strongSelf->_tableViewController)
                 [strongSelf->_tableViewController.tableView reloadData];
         });

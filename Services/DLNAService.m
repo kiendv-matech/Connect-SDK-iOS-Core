@@ -317,7 +317,12 @@ static const NSInteger kValueNotFound = -1;
 
     NSURLSessionConfiguration *sessionConfiguration = [NSURLSessionConfiguration defaultSessionConfiguration];
     NSURLSession *urlSession = [NSURLSession sessionWithConfiguration:sessionConfiguration delegate:nil delegateQueue:[NSOperationQueue mainQueue]];
+    __weak typeof(self) weakSelf = self;
     [[urlSession dataTaskWithRequest:request completionHandler:^(NSData * _Nullable data, NSURLResponse * _Nullable response, NSError * _Nullable connectionError) {
+        typeof(self) strongSelf = weakSelf;
+        if (strongSelf == nil) {
+            return;
+        }
         NSError *xmlError;
         NSDictionary *dataXML = [CTXMLReader dictionaryForXMLData:data error:&xmlError];
 
@@ -333,7 +338,7 @@ static const NSInteger kValueNotFound = -1;
                 dispatch_on_main(^{ command.callbackError([ConnectError generateErrorWithCode:ConnectStatusCodeError andDetails:@"Could not parse command response"]); });
         } else
         {
-            NSDictionary *upnpFault = [self responseDataFromResponse:dataXML
+            NSDictionary *upnpFault = [strongSelf responseDataFromResponse:dataXML
                                                            forMethod:@"Fault"];
 
             if (upnpFault)
@@ -420,6 +425,9 @@ static const NSInteger kValueNotFound = -1;
         
         [[urlSession dataTaskWithRequest:request completionHandler:^(NSData * _Nullable data, NSURLResponse * _Nullable _response, NSError * _Nullable connectionError) {
             typeof(self) strongSelf = weakSelf;
+            if (strongSelf == nil) {
+                return;
+            }
             NSHTTPURLResponse *response = (NSHTTPURLResponse *)_response;
 
             if (connectionError || !response)
@@ -462,9 +470,12 @@ static const NSInteger kValueNotFound = -1;
 
         NSURLSessionConfiguration *sessionConfiguration = [NSURLSessionConfiguration defaultSessionConfiguration];
         NSURLSession *urlSession = [NSURLSession sessionWithConfiguration:sessionConfiguration delegate:nil delegateQueue:[NSOperationQueue mainQueue]];
-        
+        __weak typeof(self) weakSelf = self;
         [[urlSession dataTaskWithRequest:request completionHandler:^(NSData * _Nullable data, NSURLResponse * _Nullable _response, NSError * _Nullable connectionError) {
-                            
+            typeof(self) strongSelf = weakSelf;
+            if (strongSelf == nil) {
+                return;
+            }
             NSHTTPURLResponse *response = (NSHTTPURLResponse *)_response;
 
             if (connectionError || !response)
@@ -472,7 +483,7 @@ static const NSInteger kValueNotFound = -1;
 
             if (response.statusCode == 200)
             {
-                [self performSelector:@selector(resubscribeSubscriptions) withObject:nil afterDelay:kSubscriptionTimeoutSeconds / 2];
+                [strongSelf performSelector:@selector(resubscribeSubscriptions) withObject:nil afterDelay:kSubscriptionTimeoutSeconds / 2];
             }
             
         }] resume];
@@ -502,6 +513,9 @@ static const NSInteger kValueNotFound = -1;
         __weak typeof(self) weakSelf = self;
         [[urlSession dataTaskWithRequest:request completionHandler:^(NSData * _Nullable data, NSURLResponse * _Nullable _response, NSError * _Nullable connectionError) {
             typeof(self) strongSelf = weakSelf;
+            if (strongSelf == nil) {
+                return;
+            }
             NSHTTPURLResponse *response = (NSHTTPURLResponse *)_response;
 
             if (connectionError || !response)

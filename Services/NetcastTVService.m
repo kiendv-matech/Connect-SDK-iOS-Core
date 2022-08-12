@@ -354,8 +354,11 @@ NSString *lgeUDAPRequestURI[8] = {
     _pairingAlert = [UIAlertController alertControllerWithTitle:title message:message preferredStyle:UIAlertControllerStyleAlert];
     __weak typeof(self) weakSelf = self;
     UIAlertAction *okAction = [UIAlertAction actionWithTitle:ok style:UIAlertActionStyleDefault handler:^(UIAlertAction * _Nonnull action) {
+        if (weakSelf == nil) {
+            return;
+        }
         NSString *pairingCode = weakSelf.pairingAlert.textFields[0].text;
-        [self pairWithData:pairingCode];
+        [weakSelf pairWithData:pairingCode];
     }];
     [_pairingAlert addAction:okAction];
     UIAlertAction *cancelAction = [UIAlertAction actionWithTitle:cancel style:UIAlertActionStyleCancel handler:^(UIAlertAction * _Nonnull action) {
@@ -420,6 +423,9 @@ NSString *lgeUDAPRequestURI[8] = {
     typedef void (^ TextEditedHandler)(NSString *);
     __weak typeof(self) weakSelf = self;
     TextEditedHandler textEditedHandler = ^(NSString *text) {
+        if (weakSelf == nil) {
+            return;
+        }
         weakSelf.keyboardString = text;
     };
     
@@ -583,10 +589,13 @@ NSString *lgeUDAPRequestURI[8] = {
         [request setValue:dataLength forHTTPHeaderField:@"Content-Length"];
         [request setHTTPBody:xmlData];
     }
-
+    __weak typeof(self) weakSelf = self;
     [[urlSession dataTaskWithRequest:request completionHandler:^(NSData * _Nullable data, NSURLResponse * _Nullable response, NSError * _Nullable connectionError) {
         DLog(@"[IN] : %@", [((NSHTTPURLResponse *)response) allHeaderFields]);
-
+        typeof(self) strongSelf = weakSelf;
+        if (strongSelf == nil) {
+            return;
+        }
         if (connectionError || !data)
         {
             if (command.callbackError)
@@ -620,7 +629,7 @@ NSString *lgeUDAPRequestURI[8] = {
                 
                 if (dataString)
                 {
-                    NSError *commandError = [self parseCommandResponse:response
+                    NSError *commandError = [strongSelf parseCommandResponse:response
                                                                   data:dataString];
                     if (commandError)
                     {
@@ -1866,6 +1875,9 @@ NSString *lgeUDAPRequestURI[8] = {
     ServiceCommand *command = [ServiceCommand commandWithDelegate:self target:targetURL payload:payload];
     __weak typeof(self) weakSelf = self;
     command.callbackComplete = ^(id responseObject){
+        if (weakSelf == nil) {
+            return;
+        }
         weakSelf.mouseVisible = YES;
         
         if (success)
@@ -1900,6 +1912,9 @@ NSString *lgeUDAPRequestURI[8] = {
     ServiceCommand *command = [ServiceCommand commandWithDelegate:self target:targetURL payload:payload];
     __weak typeof(self) weakSelf = self;
     command.callbackComplete = ^(id responseObject){
+        if (weakSelf == nil) {
+            return;
+        }
         weakSelf.mouseVisible = NO;
 
         if (success)
@@ -1944,6 +1959,9 @@ NSString *lgeUDAPRequestURI[8] = {
     __weak typeof(self) weakSelf = self;
     command.callbackComplete = ^(id responseObject)
     {
+        if (weakSelf == nil) {
+            return;
+        }
         if (weakSelf.mouseDistance.dx != 0 || weakSelf.mouseDistance.dy != 0)
             [weakSelf moveMouseWithSuccess:nil failure:nil];
         else
@@ -2124,6 +2142,9 @@ NSString *lgeUDAPRequestURI[8] = {
         __weak typeof(self) weakSelf = self;
         [self sendKeyCode:NetcastTVKeyCodeRed success:^(id responseObject)
         {
+            if (weakSelf == nil) {
+                return;
+            }
             weakSelf.keyboardString = @"";
 
             if (success)

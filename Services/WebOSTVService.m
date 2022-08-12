@@ -310,6 +310,9 @@
     __weak typeof(self) weakSelf = self;
     _pairingAlert = [UIAlertController alertControllerWithTitle:title message:message preferredStyle:UIAlertControllerStyleAlert];
     UIAlertAction *okAction = [UIAlertAction actionWithTitle:ok style:UIAlertActionStyleDefault handler:^(UIAlertAction * _Nonnull action) {
+        if (weakSelf == nil) {
+            return;
+        }
         if(weakSelf.pairingType == DeviceServicePairingTypePinCode || weakSelf.pairingType == DeviceServicePairingTypeMixed) {
             NSString *pairingCode = weakSelf.pairingAlert.textFields[0].text;
             [weakSelf sendPairingKey:pairingCode success:nil failure:nil];
@@ -346,6 +349,9 @@
     }
     __weak typeof(self) weakSelf = self;
     dispatch_on_main(^{
+        if (weakSelf == nil) {
+            return;
+        }
         UIViewController *topViewController = [Utils topViewController];
         [topViewController presentViewController:weakSelf.pairingAlert animated:true completion:nil];
     });
@@ -370,6 +376,9 @@
     __weak typeof(self) weakSelf = self;
     if (_pairingAlert && !_pairingAlert.isBeingDismissed)
         dispatch_on_main(^{
+            if (weakSelf == nil) {
+                return;
+            }
 //            [_pairingAlert dismissWithClickedButtonIndex:0 animated:NO];
             [weakSelf.pairingAlert dismissViewControllerAnimated:true completion:^{
                 [weakSelf disconnect];
@@ -389,6 +398,9 @@
     __weak typeof(self) weakSelf = self;
     if (_pairingAlert && !_pairingAlert.isBeingDismissed)
         dispatch_on_main(^{
+            if (weakSelf == nil) {
+                return;
+            }
 //            [_pairingAlert dismissWithClickedButtonIndex:1 animated:YES];
             [weakSelf.pairingAlert dismissViewControllerAnimated:YES completion:^{
                 if(weakSelf.pairingType == DeviceServicePairingTypePinCode || weakSelf.pairingType == DeviceServicePairingTypeMixed) {
@@ -410,6 +422,9 @@
     __weak typeof(self) weakSelf = self;
     if (_pairingAlert && !_pairingAlert.isBeingDismissed)
         dispatch_on_main(^{
+            if (weakSelf == nil) {
+                return;
+            }
 //            [_pairingAlert dismissWithClickedButtonIndex:0 animated:YES];
             [weakSelf.pairingAlert dismissViewControllerAnimated:YES completion:^{
                 [weakSelf disconnect];
@@ -1566,12 +1581,18 @@
     command.callbackComplete = (^(NSDictionary *responseDic)
     {
         typeof(self) strongSelf = weakSelf;
+        if (strongSelf == nil) {
+            return;
+        }
         NSString *socket = [responseDic objectForKey:@"socketPath"];
         strongSelf->_mouseSocket = [[WebOSTVServiceMouse alloc] initWithSocket:socket success:success failure:failure];
     });
     command.callbackError = ^(NSError *error)
     {
         typeof(self) strongSelf = weakSelf;
+        if (strongSelf == nil) {
+            return;
+        }
         strongSelf->_mouseInit = NO;
         strongSelf->_mouseSocket = nil;
 
@@ -1705,8 +1726,11 @@
     __weak typeof(self) weakSelf = self;
     command.callbackComplete = ^(NSDictionary *responseObject)
     {
-        LaunchSession *launchSession;
         typeof(self) strongSelf = weakSelf;
+        if (strongSelf == nil) {
+            return;
+        }
+        LaunchSession *launchSession;
         if (webAppSession)
             launchSession = webAppSession.launchSession;
         else
@@ -1891,6 +1915,10 @@
     };
     __weak typeof(self) weakSelf = self;
     SuccessBlock connectSuccess = ^(id responseObject) {
+        typeof(self) strongSelf = weakSelf;
+        if (strongSelf == nil) {
+            return;
+        }
         NSString *state = [responseObject objectForKey:@"state"];
 
         if (![state isEqualToString:@"CONNECTED"])
@@ -1905,7 +1933,7 @@
         }
 
         NSString *fullAppId = responseObject[@"appId"];
-        typeof(self) strongSelf = weakSelf;
+        
         if (fullAppId)
         {
             if (webAppSession.launchSession.sessionType == LaunchSessionTypeWebApp)
@@ -1940,25 +1968,27 @@
     NSURL *URL = [NSURL URLWithString:@"ssap://webapp/pinWebApp"];
     NSMutableDictionary *payload = [NSMutableDictionary new];
     [payload setObject:webAppId forKey:@"webAppId"];
-     __weak typeof(self) weakSelf = self;
-    __block ServiceSubscription *subscription = [self.socket addSubscribe:URL payload:payload success:^(NSDictionary *responseDict)
-                                         {
-                                             if([responseDict valueForKey:@"pairingType"]){
-                                                [weakSelf showAlertWithTitle:@"Pin Web App" andMessage:@"Please confirm on your device"];
-                                                 
-                                             }
-                                             else
-                                             {
-                                                 [weakSelf dismissPinAlertView];
-                                                 [subscription unsubscribe];
-                                                 success(responseDict);
-                                             }
-                                             
-                                         }failure:^(NSError *error){
-                                             [weakSelf dismissPinAlertView];
-                                             [subscription unsubscribe];
-                                             failure(error);
-                                         }];
+    __weak typeof(self) weakSelf = self;
+    __block ServiceSubscription *subscription = [self.socket addSubscribe:URL payload:payload success:^(NSDictionary *responseDict) {
+        if (weakSelf == nil) {
+            return;
+        }
+        if([responseDict valueForKey:@"pairingType"]){
+            [weakSelf showAlertWithTitle:@"Pin Web App" andMessage:@"Please confirm on your device"];
+            
+        }
+        else
+        {
+            [weakSelf dismissPinAlertView];
+            [subscription unsubscribe];
+            success(responseDict);
+        }
+        
+    }failure:^(NSError *error){
+        [weakSelf dismissPinAlertView];
+        [subscription unsubscribe];
+        failure(error);
+    }];
 }
 
 - (void)unPinWebApp:(NSString *)webAppId success:(SuccessBlock)success failure:(FailureBlock)failure
@@ -1976,25 +2006,27 @@
     [payload setObject:webAppId forKey:@"webAppId"];
     
     __weak typeof(self) weakSelf = self;
-    __block ServiceSubscription *subscription = [self.socket addSubscribe:URL payload:payload success:^(NSDictionary *responseDict)
-                                         {
-                                             if([responseDict valueForKey:@"pairingType"]){
-                                                [weakSelf showAlertWithTitle:@"Un Pin Web App" andMessage:@"Please confirm on your device"];
-                                                
-                                             }
-                                             else
-                                             {
-                                                 [weakSelf dismissPinAlertView];
-                                                 [subscription unsubscribe];
-                                                  success(responseDict);
-                                             }
-                                             
-                                             
-                                         }failure:^(NSError *error){
-                                             [weakSelf dismissPinAlertView];
-                                             [subscription unsubscribe];
-                                             failure(error);
-                                         }];
+    __block ServiceSubscription *subscription = [self.socket addSubscribe:URL payload:payload success:^(NSDictionary *responseDict){
+        if (weakSelf == nil) {
+            return;
+        }
+        if([responseDict valueForKey:@"pairingType"]){
+            [weakSelf showAlertWithTitle:@"Un Pin Web App" andMessage:@"Please confirm on your device"];
+            
+        }
+        else
+        {
+            [weakSelf dismissPinAlertView];
+            [subscription unsubscribe];
+            success(responseDict);
+        }
+        
+        
+    }failure:^(NSError *error){
+        [weakSelf dismissPinAlertView];
+        [subscription unsubscribe];
+        failure(error);
+    }];
 }
 
 - (void)isWebAppPinned:(NSString *)webAppId success:(WebAppPinStatusBlock)success failure:(FailureBlock)failure
@@ -2192,6 +2224,9 @@
     command.callbackComplete = ^(id responseObject)
     {
         typeof(self) strongSelf = weakSelf;
+        if (strongSelf == nil) {
+            return;
+        }
         strongSelf->_keyboardQueueProcessing = NO;
 
         if (strongSelf->_keyboardQueue.count > 0)
@@ -2200,6 +2235,9 @@
     command.callbackError = ^(NSError *error)
     {
         typeof(self) strongSelf = weakSelf;
+        if (strongSelf == nil) {
+            return;
+        }
         strongSelf->_keyboardQueueProcessing = NO;
 
         if (strongSelf->_keyboardQueue.count > 0)

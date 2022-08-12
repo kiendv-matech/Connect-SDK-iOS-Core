@@ -383,6 +383,9 @@ static double searchAttemptsBeforeKill = 6.0;
     __weak typeof(self) weakSelf = self;
     [[urlSession dataTaskWithRequest:request completionHandler:^(NSData * _Nullable data, NSURLResponse * _Nullable response, NSError * _Nullable connectionError) {
         typeof(self) strongSelf = weakSelf;
+        if (strongSelf == nil) {
+            return;
+        }
         NSError *xmlError;
         NSDictionary *xml = [CTXMLReader dictionaryForXMLData:data error:&xmlError];
 
@@ -411,7 +414,7 @@ static double searchAttemptsBeforeKill = 6.0;
 
                     @synchronized(strongSelf->_foundServices) { [strongSelf->_foundServices setObject:service forKey:UUID]; }
 
-                    [self notifyDelegateOfNewService:service];
+                    [strongSelf notifyDelegateOfNewService:service];
                 }
             }
         }

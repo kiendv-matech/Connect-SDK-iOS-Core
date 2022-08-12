@@ -109,6 +109,9 @@
         _connectingAlertView = [UIAlertController alertControllerWithTitle:title message:message preferredStyle:UIAlertControllerStyleAlert];
         __weak typeof(self) weakSelf = self;
         UIAlertAction *cancelAction = [UIAlertAction actionWithTitle:cancel style:UIAlertActionStyleCancel handler:^(UIAlertAction * _Nonnull action) {
+            if (weakSelf == nil) {
+                return;
+            }
             if (weakSelf.connecting)
                 [weakSelf disconnect];
             weakSelf.connectingAlertView = nil;
@@ -152,6 +155,9 @@
     __weak typeof(self) weakSelf = self;
     if (_connectingAlertView)
         dispatch_on_main(^{
+            if (weakSelf == nil) {
+                return;
+            }
 //            [_connectingAlertView dismissWithClickedButtonIndex:0 animated:NO];
             [weakSelf.connectingAlertView dismissViewControllerAnimated:YES completion:^{
                 if (weakSelf.connecting)
@@ -201,6 +207,9 @@
         __weak typeof(self) weakSelf = self;
         if (_connectingAlertView)
             dispatch_on_main(^{
+                if (weakSelf == nil) {
+                    return;
+                }
 //                [_connectingAlertView dismissWithClickedButtonIndex:1 animated:NO];
                 [weakSelf.connectingAlertView dismissViewControllerAnimated:YES completion:nil];
             });
