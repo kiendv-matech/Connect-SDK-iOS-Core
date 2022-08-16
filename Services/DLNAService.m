@@ -250,6 +250,7 @@ static const NSInteger kValueNotFound = -1;
         [writer writeElement:@"Body" withNamespace:kSOAPNamespace andContentsBlock:^(XMLWriter *writer) {
             [writer setPrefix:@"u" namespaceURI:namespace];
             [writer writeElement:commandName withNamespace:namespace andContentsBlock:^(XMLWriter *writer) {
+                [writer writeAttribute:@"xmlns:u" value:namespace];
                 [writer writeElement:@"InstanceID" withContents:@"0"];
                 if (writerBlock) {
                     writerBlock(writer);
