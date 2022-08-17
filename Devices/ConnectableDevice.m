@@ -26,7 +26,6 @@
 #import "TextInputControl.h"
 #import "CTGuid.h"
 #import "DiscoveryManager.h"
-#import "Utils.h"
 
 @implementation ConnectableDevice
 {
@@ -189,6 +188,11 @@
             if (service.connected)
                 connectedCount++;
         }
+        
+        if ( [self isAirPlayService: key]) {
+            connectedCount++;
+        }
+
     }];
 
     return connectedCount >= _services.count;
@@ -202,9 +206,12 @@
     } else
     {
         [_services enumerateKeysAndObjectsUsingBlock:^(id key, DeviceService *service, BOOL *stop)
-        {
-            if (!service.connected)
-                [service connect];
+         {
+            if (! [self isAirPlayService: key]) {
+                if (!service.connected)
+                    [service connect];
+            }
+            
         }];
     }
 
@@ -222,6 +229,14 @@
     [[NSNotificationCenter defaultCenter] removeObserver:self name:kConnectSDKWirelessSSIDChanged object:nil];
 
     dispatch_on_main(^{ [self.delegate connectableDeviceDisconnected:self withError:nil]; });
+}
+
+// Skip AirPlayService
+- (BOOL) isAirPlayService: (id) key {
+    if ([key  isEqual: @"AirPlay"]) {
+        return YES;
+    }
+    return NO;
 }
 
 - (BOOL) isConnectable
@@ -455,13 +470,8 @@
             dispatch_on_main(^{ [self.delegate connectableDevice:self service:service pairingRequiredOfType:pairingType withData:pairingData]; });
         else
         {
-            if (pairingType == DeviceServicePairingTypeAirPlayMirroring) {
-                dispatch_on_main(^{
-                    UIAlertController *alertVC = (UIAlertController *)pairingData;
-                    UIViewController *topVC = [Utils topViewController];
-                    [topVC presentViewController:alertVC animated:YES completion:nil];
-                });
-            }
+            if (pairingType == DeviceServicePairingTypeAirPlayMirroring)
+                [(UIAlertView *)pairingData show];
         }
     }
 }
@@ -618,6 +628,10 @@
 
     [_services enumerateKeysAndObjectsUsingBlock:^(id key, id service, BOOL *stop)
     {
+        if ([self isAirPlayService: key]) {
+            return;
+        }
+        
         if (![service respondsToSelector:@selector(mediaPlayer)])
             return;
 
@@ -647,6 +661,11 @@
 
     [_services enumerateKeysAndObjectsUsingBlock:^(id key, id service, BOOL *stop)
     {
+        
+        if ([self isAirPlayService: key]) {
+            return;
+        }
+        
         if (![service respondsToSelector:@selector(mediaControl)])
             return;
 
@@ -676,6 +695,10 @@
 
     [_services enumerateKeysAndObjectsUsingBlock:^(id key, id service, BOOL *stop)
     {
+        if ([self isAirPlayService: key]) {
+            return;
+        }
+        
         if (![service respondsToSelector:@selector(volumeControl)])
             return;
 
@@ -705,6 +728,10 @@
 
     [_services enumerateKeysAndObjectsUsingBlock:^(id key, id service, BOOL *stop)
     {
+        if ([self isAirPlayService: key]) {
+            return;
+        }
+        
         if (![service respondsToSelector:@selector(tvControl)])
             return;
 
@@ -734,6 +761,10 @@
 
     [_services enumerateKeysAndObjectsUsingBlock:^(id key, id service, BOOL *stop)
     {
+        if ([self isAirPlayService: key]) {
+            return;
+        }
+        
         if (![service respondsToSelector:@selector(keyControl)])
             return;
 
@@ -763,6 +794,10 @@
 
     [_services enumerateKeysAndObjectsUsingBlock:^(id key, id service, BOOL *stop)
     {
+        if ([self isAirPlayService: key]) {
+            return;
+        }
+        
         if (![service respondsToSelector:@selector(textInputControl)])
             return;
 
@@ -821,6 +856,10 @@
 
     [_services enumerateKeysAndObjectsUsingBlock:^(id key, id service, BOOL *stop)
     {
+        if ([self isAirPlayService: key]) {
+            return;
+        }
+        
         if (![service respondsToSelector:@selector(powerControl)])
             return;
 
@@ -850,6 +889,10 @@
 
     [_services enumerateKeysAndObjectsUsingBlock:^(id key, id service, BOOL *stop)
     {
+        if ([self isAirPlayService: key]) {
+            return;
+        }
+        
         if (![service respondsToSelector:@selector(toastControl)])
             return;
 
@@ -879,6 +922,10 @@
 
     [_services enumerateKeysAndObjectsUsingBlock:^(id key, id service, BOOL *stop)
     {
+        if ([self isAirPlayService: key]) {
+            return;
+        }
+        
         if (![service respondsToSelector:@selector(webAppLauncher)])
             return;
 
