@@ -26,6 +26,8 @@
 #import "TextInputControl.h"
 #import "CTGuid.h"
 #import "DiscoveryManager.h"
+#import "Utils.h"
+#import "CastService.h"
 
 @implementation ConnectableDevice
 {
@@ -392,6 +394,16 @@
 
     if (serviceDescription.modelNumber)
         _consolidatedServiceDescription.modelNumber = serviceDescription.modelNumber;
+    if (serviceDescription.manufacturer) {
+        if (![serviceDescription.serviceId isEqualToString:kConnectSDKCastServiceId]) {
+            _consolidatedServiceDescription.manufacturer = serviceDescription.manufacturer;
+        }else{
+            if (_consolidatedServiceDescription.manufacturer == nil) {
+                _consolidatedServiceDescription.manufacturer = serviceDescription.manufacturer;
+            }
+        }
+    }
+    
 }
 
 - (DeviceService *)serviceWithName:(NSString *)serviceId
@@ -470,8 +482,13 @@
             dispatch_on_main(^{ [self.delegate connectableDevice:self service:service pairingRequiredOfType:pairingType withData:pairingData]; });
         else
         {
-            if (pairingType == DeviceServicePairingTypeAirPlayMirroring)
-                [(UIAlertView *)pairingData show];
+            if (pairingType == DeviceServicePairingTypeAirPlayMirroring) {
+                dispatch_on_main(^{
+                    UIAlertController *alertVC = (UIAlertController *)pairingData;
+                    UIViewController *topVC = [Utils topViewController];
+                    [topVC presentViewController:alertVC animated:YES completion:nil];
+                });
+            }
         }
     }
 }
