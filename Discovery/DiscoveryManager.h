@@ -80,6 +80,8 @@
  */
 - (NSDictionary *) allDevices;
 
+- (void)setAllDevices:(NSMutableDictionary *)devices;
+
 #pragma mark - Configuration & Device Registration
 
 // @cond INTERNAL

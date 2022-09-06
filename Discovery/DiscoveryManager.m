@@ -322,6 +322,7 @@
     {
         [_compatibleDevices enumerateKeysAndObjectsUsingBlock:^(NSString *address, ConnectableDevice *device, BOOL *stop)
         {
+            
             if (self.delegate)
                 [self.delegate discoveryManager:self didLoseDevice:device];
         }];
@@ -331,7 +332,9 @@
 
     NSArray *allDevices;
 
-    @synchronized (_allDevices) { allDevices = [_allDevices allValues]; }
+    @synchronized (_allDevices) {
+        allDevices = [_allDevices allValues];
+    }
 
     [allDevices enumerateObjectsUsingBlock:^(ConnectableDevice *device, NSUInteger idx, BOOL *stop)
     {
@@ -365,6 +368,12 @@
 - (NSDictionary *) allDevices
 {
     return [NSDictionary dictionaryWithDictionary:_allDevices];
+}
+
+- (void)setAllDevices:(NSMutableDictionary *)devices {
+    @synchronized (_allDevices) {
+        _allDevices = devices;
+    }
 }
 
 - (NSDictionary *)compatibleDevices
