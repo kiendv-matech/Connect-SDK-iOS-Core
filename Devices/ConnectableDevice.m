@@ -395,6 +395,9 @@
     if (serviceDescription.modelNumber)
         _consolidatedServiceDescription.modelNumber = serviceDescription.modelNumber;
     if (serviceDescription.manufacturer) {
+        if (_consolidatedServiceDescription.manufacturer && [[_consolidatedServiceDescription.manufacturer uppercaseString] containsString:@"Samsung"]) {
+            return;
+        }
         if (![serviceDescription.serviceId isEqualToString:kConnectSDKCastServiceId]) {
             _consolidatedServiceDescription.manufacturer = serviceDescription.manufacturer;
         }else{
@@ -539,6 +542,9 @@
 
     [self.services enumerateObjectsUsingBlock:^(DeviceService *service, NSUInteger idx, BOOL *stop)
     {
+        if ([service.serviceName isEqualToString:@"AirPlay"]) {
+            return;
+        }
         if ([service hasCapability:capability])
         {
             hasCap = YES;

@@ -88,7 +88,7 @@ static BOOL _shouldDisconnectOnBackground = YES;
 - (BOOL) hasCapability:(NSString *)capability
 {
     NSRange anyRange = [capability rangeOfString:@".Any"];
-    
+//    NSLog(@"Hieu trinh capabilities of service = %@ and service name = %@",self.capabilities , self.serviceName);
     if (anyRange.location != NSNotFound)
     {
         NSString *matchedCapability = [capability substringToIndex:anyRange.location];
