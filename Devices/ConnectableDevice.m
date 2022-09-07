@@ -395,7 +395,7 @@
     if (serviceDescription.modelNumber)
         _consolidatedServiceDescription.modelNumber = serviceDescription.modelNumber;
     if (serviceDescription.manufacturer) {
-        if (_consolidatedServiceDescription.manufacturer && [[_consolidatedServiceDescription.manufacturer uppercaseString] containsString:@"Samsung"]) {
+        if (_consolidatedServiceDescription.manufacturer && [[_consolidatedServiceDescription.manufacturer uppercaseString] containsString:[@"Samsung" uppercaseString]]) {
             return;
         }
         if (![serviceDescription.serviceId isEqualToString:kConnectSDKCastServiceId]) {
