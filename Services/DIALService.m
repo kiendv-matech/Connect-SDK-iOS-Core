@@ -119,7 +119,7 @@ static NSMutableArray *registeredApps = nil;
 
 - (BOOL) isConnectable
 {
-    return YES;
+    return NO;
 }
 
 - (void) connect

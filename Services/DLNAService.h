@@ -28,4 +28,7 @@
 
 @interface DLNAService : DeviceService <MediaPlayer, MediaControl, VolumeControl, PlayListControl>
 
+- (void) stopReachability;
+- (void) startReachability;
+
 @end

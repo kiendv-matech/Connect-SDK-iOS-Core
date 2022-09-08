@@ -82,6 +82,9 @@
 
 - (void)setAllDevices:(NSMutableDictionary *)devices;
 
+//reset CompatibleDevices
+- (void) resetCompatibleDevices:(NSMutableDictionary *)compatibleDevices;
+
 #pragma mark - Configuration & Device Registration
 
 // @cond INTERNAL

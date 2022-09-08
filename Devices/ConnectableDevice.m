@@ -187,13 +187,16 @@
             connectedCount++;
         else
         {
-            if (service.connected)
+            if (service.connected){
                 connectedCount++;
+            }
+                
         }
         
         if ( [self isAirPlayService: key]) {
             connectedCount++;
         }
+        
 
     }];
 
@@ -334,7 +337,7 @@
         if (self.delegate && [self.delegate respondsToSelector:@selector(connectableDeviceConnectionRequired:forService:)])
             dispatch_on_main(^{ [_delegate connectableDeviceConnectionRequired:self forService:service]; });
     }
-
+    
     [self updateCapabilitiesList:oldCapabilities];
 
     [self updateConsolidatedServiceDescription:service.serviceDescription];
@@ -542,7 +545,7 @@
 
     [self.services enumerateObjectsUsingBlock:^(DeviceService *service, NSUInteger idx, BOOL *stop)
     {
-        if ([service.serviceName isEqualToString:@"AirPlay"]) {
+        if ([service.serviceName isEqualToString:@"AirPlay"] || [service.serviceName isEqualToString:@"DIAL"]) {
             return;
         }
         if ([service hasCapability:capability])
@@ -970,6 +973,32 @@
     }];
 
     return foundWebAppLauncher;
+}
+
+- (void)startReachability {
+    __block DLNAService *dlnaService = nil;
+    [_services enumerateKeysAndObjectsUsingBlock:^(id  _Nonnull key, id  _Nonnull obj, BOOL * _Nonnull stop) {
+        DeviceService *service = (DeviceService *)obj;
+        if ([service isKindOfClass:[DLNAService class]]) {
+            dlnaService = (DLNAService *)service;
+        }
+    }];
+    if (dlnaService) {
+        [dlnaService startReachability];
+    }
+}
+
+- (void) stopReachability {
+    __block DLNAService *dlnaService = nil;
+    [_services enumerateKeysAndObjectsUsingBlock:^(id  _Nonnull key, id  _Nonnull obj, BOOL * _Nonnull stop) {
+        DeviceService *service = (DeviceService *)obj;
+        if ([service isKindOfClass:[DLNAService class]]) {
+            dlnaService = (DLNAService *)service;
+        }
+    }];
+    if (dlnaService) {
+        [dlnaService stopReachability];
+    }
 }
 
 @end

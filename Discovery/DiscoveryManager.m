@@ -376,6 +376,12 @@
     }
 }
 
+- (void) resetCompatibleDevices:(NSMutableDictionary *)compatibleDevices {
+    @synchronized (_compatibleDevices) {
+        _compatibleDevices = compatibleDevices;
+    }
+}
+
 - (NSDictionary *)compatibleDevices
 {
     return [NSDictionary dictionaryWithDictionary:_compatibleDevices];
@@ -566,7 +572,27 @@
 
         return;
     }
-
+    
+    if (device.services.count == 1) {
+        DeviceService *service = device.services[0];
+        if ([service.serviceName isEqualToString:@"AirPlay"] || [service.serviceName isEqualToString:@"DIAL"]) {
+            return;
+        }
+    }
+    
+    if (device.services.count == 2) {
+        __block NSMutableArray *serviceNames = [NSMutableArray arrayWithCapacity:2];
+        [device.services enumerateObjectsUsingBlock:^(id  _Nonnull obj, NSUInteger idx, BOOL * _Nonnull stop) {
+            DeviceService *service = (DeviceService *) obj;
+            [serviceNames addObject:service.serviceName];
+        }];
+        if ([serviceNames isEqualToArray:@[@"AirPlay", @"DIAL"]]) {
+            return;
+        }
+    }
+    
+    
+    
     if (deviceIsNew)
         [self handleDeviceAdd:device];
     else
@@ -598,6 +624,23 @@
             [self handleDeviceLoss:device];
         } else
         {
+            if (device.services.count == 1) {
+                DeviceService *service = device.services[0];
+                if ([service.serviceName isEqualToString:@"AirPlay"] || [service.serviceName isEqualToString:@"DIAL"]) {
+                    return;
+                }
+            }
+            
+            if (device.services.count == 2) {
+                __block NSMutableArray *serviceNames = [NSMutableArray arrayWithCapacity:2];
+                [device.services enumerateObjectsUsingBlock:^(id  _Nonnull obj, NSUInteger idx, BOOL * _Nonnull stop) {
+                    DeviceService *service = (DeviceService *) obj;
+                    [serviceNames addObject:service.serviceName];
+                }];
+                if ([serviceNames isEqualToArray:@[@"AirPlay", @"DIAL"]]) {
+                    return;
+                }
+            }
             [self handleDeviceUpdate:device];
         }
     }
@@ -676,6 +719,23 @@
 
 - (void) connectableDevice:(ConnectableDevice *)device capabilitiesAdded:(NSArray *)added removed:(NSArray *)removed
 {
+    if (device.services.count == 1) {
+        DeviceService *service = device.services[0];
+        if ([service.serviceName isEqualToString:@"AirPlay"] || [service.serviceName isEqualToString:@"DIAL"]) {
+            return;
+        }
+    }
+    
+    if (device.services.count == 2) {
+        __block NSMutableArray *serviceNames = [NSMutableArray arrayWithCapacity:2];
+        [device.services enumerateObjectsUsingBlock:^(id  _Nonnull obj, NSUInteger idx, BOOL * _Nonnull stop) {
+            DeviceService *service = (DeviceService *) obj;
+            [serviceNames addObject:service.serviceName];
+        }];
+        if ([serviceNames isEqualToArray:@[@"AirPlay", @"DIAL"]]) {
+            return;
+        }
+    }
     [self handleDeviceUpdate:device];
 }
 

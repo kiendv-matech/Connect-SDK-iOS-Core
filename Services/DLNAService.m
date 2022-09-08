@@ -225,6 +225,14 @@ static const NSInteger kValueNotFound = -1;
         [_serviceReachability stop];
 }
 
+- (void) startReachability {
+    [_serviceReachability start];
+}
+
+- (void) stopReachability {
+    [_serviceReachability stop];
+}
+
 /// Builds a request XML for the given command name. Prepares the outer, common
 /// XML and the @c writerBlock is called to add any extra information to the XML.
 - (NSString *)commandXMLForCommandName:(NSString *)commandName

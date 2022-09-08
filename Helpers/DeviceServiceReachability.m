@@ -67,7 +67,7 @@
         return;
 
     NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:self.targetURL];
-    [request setTimeoutInterval:10];
+    [request setTimeoutInterval:30];
     [request setCachePolicy:NSURLRequestReloadIgnoringLocalCacheData];
     
     NSURLSessionConfiguration *sessionConfiguration = [NSURLSessionConfiguration defaultSessionConfiguration];
