@@ -46,7 +46,7 @@
 - (void) start
 {
     _running = YES;
-    _runTimer = [NSTimer scheduledTimerWithTimeInterval:30 target:self selector:@selector(checkReachability) userInfo:nil repeats:YES];
+    _runTimer = [NSTimer scheduledTimerWithTimeInterval:10 target:self selector:@selector(checkReachability) userInfo:nil repeats:YES];
     [_runTimer fire];
 }
 
