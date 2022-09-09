@@ -976,28 +976,32 @@
 }
 
 - (void)startReachability {
-    __block DLNAService *dlnaService = nil;
-    [_services enumerateKeysAndObjectsUsingBlock:^(id  _Nonnull key, id  _Nonnull obj, BOOL * _Nonnull stop) {
-        DeviceService *service = (DeviceService *)obj;
-        if ([service isKindOfClass:[DLNAService class]]) {
-            dlnaService = (DLNAService *)service;
+    @synchronized (_services) {
+        __block DLNAService *dlnaService = nil;
+        [_services enumerateKeysAndObjectsUsingBlock:^(id  _Nonnull key, id  _Nonnull obj, BOOL * _Nonnull stop) {
+            DeviceService *service = (DeviceService *)obj;
+            if ([service isKindOfClass:[DLNAService class]]) {
+                dlnaService = (DLNAService *)service;
+            }
+        }];
+        if (dlnaService) {
+            [dlnaService startReachability];
         }
-    }];
-    if (dlnaService) {
-        [dlnaService startReachability];
     }
 }
 
 - (void) stopReachability {
-    __block DLNAService *dlnaService = nil;
-    [_services enumerateKeysAndObjectsUsingBlock:^(id  _Nonnull key, id  _Nonnull obj, BOOL * _Nonnull stop) {
-        DeviceService *service = (DeviceService *)obj;
-        if ([service isKindOfClass:[DLNAService class]]) {
-            dlnaService = (DLNAService *)service;
+    @synchronized (_services) {
+        __block DLNAService *dlnaService = nil;
+        [_services enumerateKeysAndObjectsUsingBlock:^(id  _Nonnull key, id  _Nonnull obj, BOOL * _Nonnull stop) {
+            DeviceService *service = (DeviceService *)obj;
+            if ([service isKindOfClass:[DLNAService class]]) {
+                dlnaService = (DLNAService *)service;
+            }
+        }];
+        if (dlnaService) {
+            [dlnaService stopReachability];
         }
-    }];
-    if (dlnaService) {
-        [dlnaService stopReachability];
     }
 }
 
