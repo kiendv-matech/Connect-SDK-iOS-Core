@@ -46,7 +46,7 @@
 - (void) start
 {
     _running = YES;
-    _runTimer = [NSTimer scheduledTimerWithTimeInterval:10 target:self selector:@selector(checkReachability) userInfo:nil repeats:YES];
+    _runTimer = [NSTimer scheduledTimerWithTimeInterval:30 target:self selector:@selector(checkReachability) userInfo:nil repeats:YES];
     [_runTimer fire];
 }
 
@@ -67,7 +67,7 @@
         return;
 
     NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:self.targetURL];
-    [request setTimeoutInterval:30];
+    [request setTimeoutInterval:10];
     [request setCachePolicy:NSURLRequestReloadIgnoringLocalCacheData];
     
     NSURLSessionConfiguration *sessionConfiguration = [NSURLSessionConfiguration defaultSessionConfiguration];
