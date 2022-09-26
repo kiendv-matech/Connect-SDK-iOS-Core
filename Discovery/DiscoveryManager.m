@@ -614,35 +614,35 @@
         DLog(@"Removed service from device at address %@. Device has %lu services left",
              description.address, (unsigned long)device.services.count);
 
-        if (![device hasServices])
-        {
+//        if (![device hasServices])
+//        {
             DLog(@"Device at address %@ has been orphaned (has no services)", description.address);
 
             @synchronized (_allDevices) { [_allDevices removeObjectForKey:description.address]; }
             @synchronized (_compatibleDevices) { [_compatibleDevices removeObjectForKey:description.address]; }
 
             [self handleDeviceLoss:device];
-        } else
-        {
-            if (device.services.count == 1) {
-                DeviceService *service = device.services[0];
-                if ([service.serviceName isEqualToString:@"AirPlay"] || [service.serviceName isEqualToString:@"DIAL"]) {
-                    return;
-                }
-            }
-            
-            if (device.services.count == 2) {
-                __block NSMutableArray *serviceNames = [NSMutableArray arrayWithCapacity:2];
-                [device.services enumerateObjectsUsingBlock:^(id  _Nonnull obj, NSUInteger idx, BOOL * _Nonnull stop) {
-                    DeviceService *service = (DeviceService *) obj;
-                    [serviceNames addObject:service.serviceName];
-                }];
-                if ([serviceNames isEqualToArray:@[@"AirPlay", @"DIAL"]]) {
-                    return;
-                }
-            }
-            [self handleDeviceUpdate:device];
-        }
+//        } else
+//        {
+//            if (device.services.count == 1) {
+//                DeviceService *service = device.services[0];
+//                if ([service.serviceName isEqualToString:@"AirPlay"] || [service.serviceName isEqualToString:@"DIAL"]) {
+//                    return;
+//                }
+//            }
+//
+//            if (device.services.count == 2) {
+//                __block NSMutableArray *serviceNames = [NSMutableArray arrayWithCapacity:2];
+//                [device.services enumerateObjectsUsingBlock:^(id  _Nonnull obj, NSUInteger idx, BOOL * _Nonnull stop) {
+//                    DeviceService *service = (DeviceService *) obj;
+//                    [serviceNames addObject:service.serviceName];
+//                }];
+//                if ([serviceNames isEqualToArray:@[@"AirPlay", @"DIAL"]]) {
+//                    return;
+//                }
+//            }
+//            [self handleDeviceUpdate:device];
+//        }
     }
 }
 
